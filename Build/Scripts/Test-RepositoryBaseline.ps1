@@ -997,13 +997,7 @@ try {
                         $extensionSeparator = $finalPatternSegment.LastIndexOf('.')
                         if ($extensionSeparator -ge 0 -and $extensionSeparator -lt ($finalPatternSegment.Length - 1)) {
                             $patternExtension = $finalPatternSegment.Substring($extensionSeparator + 1)
-                            $extensionHasPatternSyntax = $false
-                            foreach ($patternCharacter in @('*', '?', '[', ']')) {
-                                if ($patternExtension.Contains($patternCharacter)) {
-                                    $extensionHasPatternSyntax = $true
-                                    break
-                                }
-                            }
+                            $extensionHasPatternSyntax = Test-GitAttributePatternHasUnescapedMetaCharacter -Pattern $patternExtension
 
                             $normalizedPatternExtension = ".$($patternExtension.ToLowerInvariant())"
                             if (-not $extensionHasPatternSyntax -and $requiredLfsExtensions -cnotcontains $normalizedPatternExtension) {
