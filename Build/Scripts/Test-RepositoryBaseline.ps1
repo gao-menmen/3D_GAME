@@ -77,6 +77,213 @@ function Convert-CommandOutputToLines {
     )
 }
 
+function Test-VersionedRepositoryRules {
+    param(
+        [string]$SourceRoot,
+        [string]$GitPath,
+        [string[]]$IgnoreProbes,
+        [string[]]$RequiredLfsPatterns
+    )
+
+    $temporaryRoot = $null
+    $temporaryBase = $null
+    $environmentVariableNames = @(
+        'HOME',
+        'USERPROFILE',
+        'XDG_CONFIG_HOME',
+        'GIT_CONFIG_GLOBAL',
+        'GIT_CONFIG_NOSYSTEM',
+        'GIT_ATTR_NOSYSTEM'
+    )
+    $originalEnvironment = @{}
+    foreach ($variableName in $environmentVariableNames) {
+        $originalEnvironment[$variableName] = [System.Environment]::GetEnvironmentVariable(
+            $variableName,
+            [System.EnvironmentVariableTarget]::Process
+        )
+    }
+
+    try {
+        try {
+            $temporaryBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
+            $temporaryRoot = Join-Path $temporaryBase ("RepositoryBaseline-$([System.Guid]::NewGuid().ToString('N'))")
+            $temporaryRepository = Join-Path $temporaryRoot 'repository'
+            $temporaryHome = Join-Path $temporaryRoot 'home'
+            $emptyGlobalConfig = Join-Path $temporaryRoot 'empty-gitconfig'
+            $emptyGlobalExcludes = Join-Path $temporaryRoot 'empty-global-excludes'
+            $emptyGlobalAttributes = Join-Path $temporaryRoot 'empty-global-attributes'
+
+            $null = [System.IO.Directory]::CreateDirectory($temporaryRepository)
+            $null = [System.IO.Directory]::CreateDirectory($temporaryHome)
+            [System.IO.File]::WriteAllText($emptyGlobalConfig, '')
+            [System.IO.File]::WriteAllText($emptyGlobalExcludes, '')
+            [System.IO.File]::WriteAllText($emptyGlobalAttributes, '')
+        }
+        catch {
+            Add-Failure 'Temporary repository could not be created for versioned rule validation.'
+            return
+        }
+
+        try {
+            [System.Environment]::SetEnvironmentVariable('HOME', $temporaryHome, [System.EnvironmentVariableTarget]::Process)
+            [System.Environment]::SetEnvironmentVariable('USERPROFILE', $temporaryHome, [System.EnvironmentVariableTarget]::Process)
+            [System.Environment]::SetEnvironmentVariable('XDG_CONFIG_HOME', $temporaryHome, [System.EnvironmentVariableTarget]::Process)
+            [System.Environment]::SetEnvironmentVariable('GIT_CONFIG_GLOBAL', $emptyGlobalConfig, [System.EnvironmentVariableTarget]::Process)
+            [System.Environment]::SetEnvironmentVariable('GIT_CONFIG_NOSYSTEM', '1', [System.EnvironmentVariableTarget]::Process)
+            [System.Environment]::SetEnvironmentVariable('GIT_ATTR_NOSYSTEM', '1', [System.EnvironmentVariableTarget]::Process)
+        }
+        catch {
+            Add-Failure 'Temporary Git environment could not be isolated for versioned rule validation.'
+            return
+        }
+
+        $isolatedGitConfiguration = @(
+            '-c', "core.excludesFile=$emptyGlobalExcludes",
+            '-c', "core.attributesFile=$emptyGlobalAttributes"
+        )
+        $initResult = Invoke-NativeCommandSafely -Executable $GitPath -Arguments (
+            $isolatedGitConfiguration + @('init', '--quiet', $temporaryRepository)
+        )
+        if (-not $initResult.Started -or $initResult.ExitCode -ne 0) {
+            Add-Failure 'Git init failed for versioned rule validation.'
+            return
+        }
+
+        $copySucceeded = $true
+        foreach ($ruleFileName in @('.gitignore', '.gitattributes')) {
+            $sourceRulePath = Join-Path $SourceRoot $ruleFileName
+            $temporaryRulePath = Join-Path $temporaryRepository $ruleFileName
+            try {
+                Copy-Item -LiteralPath $sourceRulePath -Destination $temporaryRulePath -ErrorAction Stop
+            }
+            catch {
+                Add-Failure "Versioned rule file could not be copied for isolated validation: $ruleFileName"
+                $copySucceeded = $false
+            }
+        }
+        if (-not $copySucceeded) {
+            return
+        }
+
+        try {
+            $gitInfoPath = Join-Path $temporaryRepository '.git/info'
+            [System.IO.File]::WriteAllText((Join-Path $gitInfoPath 'exclude'), '')
+            [System.IO.File]::WriteAllText((Join-Path $gitInfoPath 'attributes'), '')
+        }
+        catch {
+            Add-Failure 'Temporary repository-local Git rules could not be cleared for isolated validation.'
+            return
+        }
+
+        foreach ($probe in $IgnoreProbes) {
+            $ignoreResult = Invoke-NativeCommandSafely -Executable $GitPath -Arguments (
+                $isolatedGitConfiguration + @(
+                    '-C', $temporaryRepository, 'check-ignore', '--no-index', '--quiet', '--', $probe
+                )
+            )
+            if (-not $ignoreResult.Started -or ($ignoreResult.ExitCode -ne 0 -and $ignoreResult.ExitCode -ne 1)) {
+                Add-Failure "Git check-ignore command failed while validating versioned rules for probe: $probe"
+            }
+            elseif ($ignoreResult.ExitCode -eq 1) {
+                Add-Failure "Versioned .gitignore behavior is missing for probe: $probe"
+            }
+        }
+
+        $attributeProbeToPattern = @{}
+        foreach ($pattern in $RequiredLfsPatterns) {
+            foreach ($prefix in @('', 'Content/', 'Plugins/UrbanFoundation/Content/')) {
+                $probe = "${prefix}RepositoryBaseline$($pattern.Substring(1))"
+                $attributeProbeToPattern[$probe] = $pattern
+            }
+        }
+
+        $attributeTargets = @($attributeProbeToPattern.Keys | Sort-Object)
+        $checkAttributeResult = Invoke-NativeCommandSafely -Executable $GitPath -Arguments (
+            $isolatedGitConfiguration + @(
+                '-c', 'core.quotePath=false', '-C', $temporaryRepository,
+                'check-attr', 'filter', 'diff', 'merge', 'text', '--'
+            ) + $attributeTargets
+        )
+        if (-not $checkAttributeResult.Started -or $checkAttributeResult.ExitCode -ne 0) {
+            Add-Failure 'Git check-attr command failed while validating versioned LFS attributes.'
+        }
+        else {
+            $attributeLines = @($checkAttributeResult.Output | ForEach-Object { $_.ToString() })
+            foreach ($targetPath in $attributeTargets) {
+                $expectedAttributeLines = @(
+                    "${targetPath}: filter: lfs",
+                    "${targetPath}: diff: lfs",
+                    "${targetPath}: merge: lfs",
+                    "${targetPath}: text: unset"
+                )
+                $attributesAreValid = $true
+                foreach ($expectedLine in $expectedAttributeLines) {
+                    if ($attributeLines -cnotcontains $expectedLine) {
+                        $attributesAreValid = $false
+                    }
+                }
+
+                if (-not $attributesAreValid) {
+                    Add-Failure "Versioned .gitattributes LFS attributes are invalid for pattern: $($attributeProbeToPattern[$targetPath]) (probe: $targetPath)"
+                }
+            }
+        }
+    }
+    finally {
+        $environmentRestored = $true
+        foreach ($variableName in $environmentVariableNames) {
+            try {
+                [System.Environment]::SetEnvironmentVariable(
+                    $variableName,
+                    $originalEnvironment[$variableName],
+                    [System.EnvironmentVariableTarget]::Process
+                )
+            }
+            catch {
+                $environmentRestored = $false
+            }
+        }
+        if (-not $environmentRestored) {
+            Add-Failure 'Temporary Git environment could not be fully restored.'
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($temporaryRoot) -and [System.IO.Directory]::Exists($temporaryRoot)) {
+            $cleanupIsSafe = $false
+            try {
+                $normalizedTemporaryBase = [System.IO.Path]::GetFullPath($temporaryBase).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+                $normalizedTemporaryRoot = [System.IO.Path]::GetFullPath($temporaryRoot)
+                $cleanupIsSafe = $normalizedTemporaryRoot.StartsWith(
+                    $normalizedTemporaryBase,
+                    [System.StringComparison]::OrdinalIgnoreCase
+                ) -and [System.IO.Path]::GetFileName($normalizedTemporaryRoot).StartsWith(
+                    'RepositoryBaseline-',
+                    [System.StringComparison]::Ordinal
+                )
+            }
+            catch {
+                $cleanupIsSafe = $false
+            }
+
+            if ($cleanupIsSafe) {
+                for ($cleanupAttempt = 0; $cleanupAttempt -lt 3 -and [System.IO.Directory]::Exists($temporaryRoot); $cleanupAttempt++) {
+                    try {
+                        [System.IO.Directory]::Delete($temporaryRoot, $true)
+                    }
+                    catch {
+                        if ($cleanupAttempt -lt 2) {
+                            Start-Sleep -Milliseconds 50
+                        }
+                    }
+                }
+            }
+
+            if ([System.IO.Directory]::Exists($temporaryRoot)) {
+                Add-Failure 'Temporary repository cleanup failed after versioned rule validation.'
+            }
+        }
+    }
+}
+
 function Get-NormalizedRepositoryIdentity {
     param([string]$Value)
 
@@ -399,8 +606,7 @@ try {
             Add-Failure '.gitattributes is missing.'
         }
 
-        if ($gitRepositoryReady) {
-            $ignoreProbes = @(
+        $ignoreProbes = @(
                 '.superpowers/.repository-baseline-probe',
                 'Plugins/Test/.superpowers/RepositoryBaseline.tmp',
                 'Binaries/.repository-baseline-probe',
@@ -429,7 +635,13 @@ try {
                 'Source/Test/RepositoryBaseline.VC.db',
                 'RepositoryBaseline.VC.opendb',
                 'Source/Test/RepositoryBaseline.VC.opendb'
-            )
+        )
+
+        if ($null -ne $gitPath) {
+            Test-VersionedRepositoryRules -SourceRoot $resolvedRoot -GitPath $gitPath -IgnoreProbes $ignoreProbes -RequiredLfsPatterns $requiredLfsPatterns
+        }
+
+        if ($gitRepositoryReady) {
             foreach ($probe in $ignoreProbes) {
                 $ignoreResult = Invoke-NativeCommandSafely -Executable $gitPath -Arguments @(
                     '-C', $resolvedRoot, 'check-ignore', '--no-index', '--quiet', '--', $probe
