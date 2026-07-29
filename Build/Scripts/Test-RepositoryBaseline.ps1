@@ -831,6 +831,71 @@ try {
             }
         }
 
+        $nestedAttributePaths = @(
+            $versionedRulePaths |
+                Where-Object { $_ -clike '*/.gitattributes' } |
+                Sort-Object
+        )
+        foreach ($relativeAttributePath in $nestedAttributePaths) {
+            $versionedAttributePath = Join-Path $resolvedRoot $relativeAttributePath
+            if (-not (Test-Path -LiteralPath $versionedAttributePath -PathType Leaf)) {
+                Add-Failure "Tracked nested .gitattributes is missing from the worktree: $relativeAttributePath"
+                continue
+            }
+
+            try {
+                $attributeLines = [System.IO.File]::ReadAllLines($versionedAttributePath)
+                for ($lineIndex = 0; $lineIndex -lt $attributeLines.Count; $lineIndex++) {
+                    $attributeLine = $attributeLines[$lineIndex].Trim()
+                    if ([string]::IsNullOrWhiteSpace($attributeLine) -or $attributeLine.StartsWith('#')) {
+                        continue
+                    }
+
+                    $attributeTokens = @($attributeLine -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                    if ($attributeTokens.Count -lt 2) {
+                        continue
+                    }
+
+                    $hasDestructiveToken = $false
+                    foreach ($attributeToken in @($attributeTokens | Select-Object -Skip 1)) {
+                        foreach ($attributeName in @('filter', 'diff', 'merge')) {
+                            if ($attributeToken -ceq $attributeName -or
+                                $attributeToken -ceq "-$attributeName" -or
+                                $attributeToken -ceq "!$attributeName") {
+                                $hasDestructiveToken = $true
+                                break
+                            }
+
+                            $valuePrefix = "$attributeName="
+                            if ($attributeToken.StartsWith($valuePrefix, [System.StringComparison]::Ordinal) -and
+                                $attributeToken.Substring($valuePrefix.Length) -cne 'lfs') {
+                                $hasDestructiveToken = $true
+                                break
+                            }
+                        }
+
+                        if ($hasDestructiveToken) {
+                            break
+                        }
+
+                        if ($attributeToken -ceq 'text' -or
+                            $attributeToken -ceq '!text' -or
+                            $attributeToken.StartsWith('text=', [System.StringComparison]::Ordinal)) {
+                            $hasDestructiveToken = $true
+                            break
+                        }
+                    }
+
+                    if ($hasDestructiveToken) {
+                        Add-Failure "Unsafe nested .gitattributes rule at $relativeAttributePath line $($lineIndex + 1); nested rules may not cancel or rewrite filter, diff, merge, or text LFS safety attributes."
+                    }
+                }
+            }
+            catch {
+                Add-Failure "Nested versioned .gitattributes could not be read: $relativeAttributePath"
+            }
+        }
+
         if ($null -ne $gitPath) {
             $versionedRuleArguments = @{
                 SourceRoot = $resolvedRoot
