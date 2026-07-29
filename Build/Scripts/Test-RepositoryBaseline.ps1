@@ -960,6 +960,15 @@ try {
             }
         }
 
+        $allowedNestedLfsAttributeTokens = @(
+            'filter=lfs',
+            'diff=lfs',
+            'merge=lfs',
+            '-text',
+            'lockable',
+            '-lockable'
+        )
+
         $nestedAttributePaths = @(
             $versionedRulePaths |
                 Where-Object { $_ -clike '*/.gitattributes' } |
@@ -1011,38 +1020,16 @@ try {
                         }
                     }
 
-                    $hasDestructiveToken = $false
+                    $hasUnapprovedAttributeToken = $false
                     foreach ($attributeToken in $attributeTokens) {
-                        foreach ($attributeName in @('filter', 'diff', 'merge')) {
-                            if ($attributeToken -ceq $attributeName -or
-                                $attributeToken -ceq "-$attributeName" -or
-                                $attributeToken -ceq "!$attributeName") {
-                                $hasDestructiveToken = $true
-                                break
-                            }
-
-                            $valuePrefix = "$attributeName="
-                            if ($attributeToken.StartsWith($valuePrefix, [System.StringComparison]::Ordinal) -and
-                                $attributeToken.Substring($valuePrefix.Length) -cne 'lfs') {
-                                $hasDestructiveToken = $true
-                                break
-                            }
-                        }
-
-                        if ($hasDestructiveToken) {
-                            break
-                        }
-
-                        if ($attributeToken -ceq 'text' -or
-                            $attributeToken -ceq '!text' -or
-                            $attributeToken.StartsWith('text=', [System.StringComparison]::Ordinal)) {
-                            $hasDestructiveToken = $true
+                        if ($allowedNestedLfsAttributeTokens -cnotcontains $attributeToken) {
+                            $hasUnapprovedAttributeToken = $true
                             break
                         }
                     }
 
-                    if ($hasDestructiveToken) {
-                        Add-Failure "Unsafe nested .gitattributes rule at $relativeAttributePath line $($lineIndex + 1); nested rules may not cancel or rewrite filter, diff, merge, or text LFS safety attributes."
+                    if ($hasUnapprovedAttributeToken) {
+                        Add-Failure "Unsafe nested .gitattributes rule at $relativeAttributePath line $($lineIndex + 1); rules that may match protected LFS extensions may only use filter=lfs, diff=lfs, merge=lfs, -text, lockable, or -lockable."
                     }
                 }
             }
