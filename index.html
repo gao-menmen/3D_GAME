@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D 战术射击游戏</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #000;
+        overflow: hidden;
+        font-family: 'Courier New', monospace;
+        color: #fff;
+      }
+
+      canvas {
+        display: block;
+      }
+
+      /* ======================== HUD ======================== */
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        display: none;
+        z-index: 10;
+      }
+
+      /* 准星 */
+      #crosshair {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 20px;
+        height: 20px;
+      }
+      #crosshair::before,
+      #crosshair::after {
+        content: '';
+        position: absolute;
+        background: rgba(255, 255, 255, 0.85);
+      }
+      #crosshair::before {
+        width: 2px;
+        height: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      #crosshair::after {
+        width: 100%;
+        height: 2px;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+
+      /* 血量条 */
+      #health-bar {
+        position: absolute;
+        bottom: 60px;
+        left: 30px;
+        width: 200px;
+      }
+      #health-label {
+        font-size: 12px;
+        color: #aaa;
+        letter-spacing: 1px;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+      }
+      #health-bg {
+        width: 100%;
+        height: 12px;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      #health-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #e74c3c, #e67e22);
+        width: 100%;
+        transition: width 0.2s ease;
+      }
+      #health-value {
+        font-size: 14px;
+        font-weight: bold;
+        margin-top: 4px;
+      }
+
+      /* 弹药 */
+      #ammo {
+        position: absolute;
+        bottom: 50px;
+        right: 30px;
+        text-align: right;
+      }
+      #ammo-mag {
+        font-size: 42px;
+        font-weight: bold;
+        line-height: 1;
+        letter-spacing: -1px;
+        color: #fff;
+      }
+      #ammo-sep {
+        font-size: 20px;
+        color: #aaa;
+        margin: 0 4px;
+      }
+      #ammo-reserve {
+        font-size: 22px;
+        color: #aaa;
+      }
+      #ammo-label {
+        font-size: 11px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 2px;
+      }
+      #reload-hint {
+        font-size: 13px;
+        color: #f39c12;
+        margin-top: 4px;
+        display: none;
+        animation: blink 0.5s step-start infinite;
+      }
+      @keyframes blink {
+        50% { opacity: 0; }
+      }
+
+      /* 击杀计数 */
+      #kills {
+        position: absolute;
+        top: 20px;
+        right: 30px;
+        text-align: right;
+      }
+      #kills-label {
+        font-size: 11px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      #kills-value {
+        font-size: 28px;
+        font-weight: bold;
+        line-height: 1.1;
+      }
+
+      /* 受伤红屏反馈 */
+      #damage-flash {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: rgba(220, 20, 20, 0);
+        transition: background 0.1s ease;
+      }
+
+      /* ======================== 菜单 ======================== */
+      #menu {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.85);
+        z-index: 20;
+      }
+      #menu h1 {
+        font-size: 52px;
+        font-weight: bold;
+        letter-spacing: 4px;
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        color: #e8c84a;
+        text-shadow: 0 0 20px rgba(232, 200, 74, 0.5);
+      }
+      #menu .subtitle {
+        font-size: 14px;
+        color: #888;
+        margin-bottom: 60px;
+        letter-spacing: 2px;
+      }
+      #menu .key-list {
+        font-size: 13px;
+        color: #aaa;
+        line-height: 2;
+        text-align: left;
+        margin-bottom: 60px;
+        border: 1px solid #333;
+        padding: 16px 28px;
+        background: rgba(255,255,255,0.03);
+      }
+      #menu .key-list span {
+        display: inline-block;
+        width: 90px;
+        color: #e8c84a;
+        font-weight: bold;
+      }
+      #start-btn {
+        font-family: 'Courier New', monospace;
+        font-size: 16px;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        background: transparent;
+        color: #fff;
+        border: 2px solid #e8c84a;
+        padding: 14px 40px;
+        cursor: pointer;
+        transition: background 0.2s, color 0.2s;
+      }
+      #start-btn:hover {
+        background: #e8c84a;
+        color: #000;
+      }
+
+      /* ======================== 暂停 ======================== */
+      #pause-screen {
+        position: fixed;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 20;
+      }
+      #pause-screen h2 {
+        font-size: 40px;
+        letter-spacing: 6px;
+        text-transform: uppercase;
+        color: #e8c84a;
+        margin-bottom: 20px;
+      }
+      #pause-screen p {
+        font-size: 14px;
+        color: #aaa;
+        letter-spacing: 2px;
+      }
+
+      /* ======================== 死亡界面 ======================== */
+      #dead-screen {
+        position: fixed;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 20;
+      }
+      #dead-screen h2 {
+        font-size: 52px;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        color: #e74c3c;
+        margin-bottom: 16px;
+        text-shadow: 0 0 20px rgba(231, 76, 60, 0.6);
+      }
+      #dead-kills {
+        font-size: 18px;
+        color: #aaa;
+        margin-bottom: 40px;
+      }
+      #restart-btn {
+        font-family: 'Courier New', monospace;
+        font-size: 15px;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        background: transparent;
+        color: #fff;
+        border: 2px solid #e74c3c;
+        padding: 12px 36px;
+        cursor: pointer;
+        transition: background 0.2s, color 0.2s;
+        pointer-events: all;
+      }
+      #restart-btn:hover {
+        background: #e74c3c;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Three.js 渲染画布将被挂载到此处 -->
+
+    <!-- HUD 层（游戏进行中显示） -->
+    <div id="hud">
+      <div id="crosshair"></div>
+
+      <div id="health-bar">
+        <div id="health-label">生命值</div>
+        <div id="health-bg"><div id="health-fill"></div></div>
+        <div id="health-value">100</div>
+      </div>
+
+      <div id="ammo">
+        <div>
+          <span id="ammo-mag">30</span>
+          <span id="ammo-sep">/</span>
+          <span id="ammo-reserve">90</span>
+        </div>
+        <div id="ammo-label">弹药</div>
+        <div id="reload-hint">换弹中...</div>
+      </div>
+
+      <div id="kills">
+        <div id="kills-label">击杀</div>
+        <div id="kills-value">0</div>
+      </div>
+
+      <div id="damage-flash"></div>
+    </div>
+
+    <!-- 主菜单 -->
+    <div id="menu">
+      <h1>战术突击</h1>
+      <p class="subtitle">3D 第一人称战术射击游戏</p>
+      <div class="key-list">
+        <div><span>WASD</span>移动</div>
+        <div><span>鼠标</span>转动视角</div>
+        <div><span>Shift</span>疾跑</div>
+        <div><span>空格</span>跳跃</div>
+        <div><span>左键</span>射击</div>
+        <div><span>R</span>换弹</div>
+        <div><span>ESC</span>暂停</div>
+      </div>
+      <button id="start-btn">点击开始游戏</button>
+    </div>
+
+    <!-- 暂停界面 -->
+    <div id="pause-screen">
+      <h2>暂停</h2>
+      <p>按 ESC 或点击继续游戏</p>
+    </div>
+
+    <!-- 死亡界面 -->
+    <div id="dead-screen">
+      <h2>阵亡</h2>
+      <div id="dead-kills">本局击杀：0</div>
+      <button id="restart-btn">重新开始</button>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
