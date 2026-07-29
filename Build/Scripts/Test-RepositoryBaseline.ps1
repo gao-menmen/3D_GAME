@@ -960,7 +960,7 @@ try {
             }
         }
 
-        $allowedNestedLfsAttributeTokens = @(
+        $allowedProtectedLfsAttributeTokens = @(
             'filter=lfs',
             'diff=lfs',
             'merge=lfs',
@@ -969,15 +969,15 @@ try {
             '-lockable'
         )
 
-        $nestedAttributePaths = @(
+        $versionedAttributePaths = @(
             $versionedRulePaths |
-                Where-Object { $_ -clike '*/.gitattributes' } |
+                Where-Object { $_ -ceq '.gitattributes' -or $_ -clike '*/.gitattributes' } |
                 Sort-Object
         )
-        foreach ($relativeAttributePath in $nestedAttributePaths) {
+        foreach ($relativeAttributePath in $versionedAttributePaths) {
             $versionedAttributePath = Join-Path $resolvedRoot $relativeAttributePath
             if (-not (Test-Path -LiteralPath $versionedAttributePath -PathType Leaf)) {
-                Add-Failure "Tracked nested .gitattributes is missing from the worktree: $relativeAttributePath"
+                Add-Failure "Tracked versioned .gitattributes is missing from the worktree: $relativeAttributePath"
                 continue
             }
 
@@ -990,12 +990,20 @@ try {
                     }
 
                     $attributeRule = Get-GitAttributeRuleParts -Line $attributeLine
+                    $attributePattern = $attributeRule.Pattern
+                    if ($attributePattern.StartsWith('[attr]', [System.StringComparison]::OrdinalIgnoreCase)) {
+                        $macroName = $attributePattern.Substring(6)
+                        if ([string]::Equals($macroName, 'lockable', [System.StringComparison]::OrdinalIgnoreCase)) {
+                            Add-Failure "Unsafe .gitattributes macro definition at $relativeAttributePath line $($lineIndex + 1); lockable may not be defined as an attribute macro."
+                        }
+                        continue
+                    }
+
                     $attributeTokens = @($attributeRule.Attributes)
                     if ($attributeTokens.Count -eq 0) {
                         continue
                     }
 
-                    $attributePattern = $attributeRule.Pattern
                     $finalPatternSegment = $attributePattern
                     $lastPatternSeparator = $finalPatternSegment.LastIndexOf('/')
                     if ($lastPatternSeparator -ge 0) {
@@ -1022,19 +1030,19 @@ try {
 
                     $hasUnapprovedAttributeToken = $false
                     foreach ($attributeToken in $attributeTokens) {
-                        if ($allowedNestedLfsAttributeTokens -cnotcontains $attributeToken) {
+                        if ($allowedProtectedLfsAttributeTokens -cnotcontains $attributeToken) {
                             $hasUnapprovedAttributeToken = $true
                             break
                         }
                     }
 
                     if ($hasUnapprovedAttributeToken) {
-                        Add-Failure "Unsafe nested .gitattributes rule at $relativeAttributePath line $($lineIndex + 1); rules that may match protected LFS extensions may only use filter=lfs, diff=lfs, merge=lfs, -text, lockable, or -lockable."
+                        Add-Failure "Unsafe .gitattributes rule at $relativeAttributePath line $($lineIndex + 1); rules that may match protected LFS extensions may only use filter=lfs, diff=lfs, merge=lfs, -text, lockable, or -lockable."
                     }
                 }
             }
             catch {
-                Add-Failure "Nested versioned .gitattributes could not be read: $relativeAttributePath"
+                Add-Failure "Versioned .gitattributes could not be read: $relativeAttributePath"
             }
         }
 
