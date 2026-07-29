@@ -196,6 +196,7 @@ function Test-VersionedRepositoryRules {
         }
 
         $placeholderCreationSucceeded = $true
+        $attributeDirectoryProbeToDetails = @{}
         foreach ($relativeAssetPath in $RepositoryAssetPaths) {
             $normalizedAssetPath = $relativeAssetPath.Replace('\', '/')
             try {
@@ -216,6 +217,51 @@ function Test-VersionedRepositoryRules {
                 $placeholderCreationSucceeded = $false
             }
         }
+        foreach ($relativeRulePath in $VersionedRulePaths) {
+            $normalizedRulePath = $relativeRulePath.Replace('\', '/')
+            if ([System.IO.Path]::GetFileName($normalizedRulePath) -cne '.gitattributes') {
+                continue
+            }
+
+            $relativeAttributesDirectory = [System.IO.Path]::GetDirectoryName($normalizedRulePath)
+            if ($null -eq $relativeAttributesDirectory) {
+                $relativeAttributesDirectory = ''
+            }
+            else {
+                $relativeAttributesDirectory = $relativeAttributesDirectory.Replace('\', '/')
+            }
+
+            foreach ($pattern in $RequiredLfsPatterns) {
+                try {
+                    do {
+                        $probeFileName = "RepositoryBaselineAttributesDirectory-$([System.Guid]::NewGuid().ToString('N'))$($pattern.Substring(1))"
+                        if ([string]::IsNullOrWhiteSpace($relativeAttributesDirectory)) {
+                            $probeRelativePath = $probeFileName
+                        }
+                        else {
+                            $probeRelativePath = "$relativeAttributesDirectory/$probeFileName"
+                        }
+                        $temporaryProbePath = [System.IO.Path]::GetFullPath((Join-Path $temporaryRepository $probeRelativePath))
+                    } while ([System.IO.File]::Exists($temporaryProbePath) -or [System.IO.Directory]::Exists($temporaryProbePath))
+
+                    if (-not $temporaryProbePath.StartsWith($temporaryRepositoryPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                        throw 'Attributes-directory probe escaped its repository root.'
+                    }
+
+                    $null = [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($temporaryProbePath))
+                    [System.IO.File]::WriteAllBytes($temporaryProbePath, [byte[]]@())
+                    $attributeDirectoryProbeToDetails[$probeRelativePath] = @{
+                        Pattern = $pattern
+                        RulePath = $normalizedRulePath
+                    }
+                }
+                catch {
+                    Add-Failure "Temporary attributes-directory probe could not be created for isolated validation: $normalizedRulePath ($pattern)"
+                    $placeholderCreationSucceeded = $false
+                }
+            }
+        }
+
         if (-not $placeholderCreationSucceeded) {
             return
         }
@@ -244,6 +290,9 @@ function Test-VersionedRepositoryRules {
 
         $attributeTargets = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         foreach ($probe in $attributeProbeToPattern.Keys) {
+            $null = $attributeTargets.Add($probe)
+        }
+        foreach ($probe in $attributeDirectoryProbeToDetails.Keys) {
             $null = $attributeTargets.Add($probe)
         }
         foreach ($assetPath in $RepositoryAssetPaths) {
@@ -284,6 +333,10 @@ function Test-VersionedRepositoryRules {
                 if (-not $attributesAreValid) {
                     if ($attributeProbeToPattern.ContainsKey($targetPath)) {
                         Add-Failure "Versioned .gitattributes LFS attributes are invalid for pattern: $($attributeProbeToPattern[$targetPath]) (probe: $targetPath)"
+                    }
+                    elseif ($attributeDirectoryProbeToDetails.ContainsKey($targetPath)) {
+                        $probeDetails = $attributeDirectoryProbeToDetails[$targetPath]
+                        Add-Failure "Versioned .gitattributes LFS attributes are invalid for pattern: $($probeDetails.Pattern) (rule: $($probeDetails.RulePath))"
                     }
                     else {
                         Add-Failure "Versioned .gitattributes LFS attributes are invalid for repository asset path: $targetPath"
