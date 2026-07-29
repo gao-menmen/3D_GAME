@@ -82,11 +82,12 @@ function Test-VersionedRepositoryRules {
         [string]$SourceRoot,
         [string]$GitPath,
         [string[]]$IgnoreProbes,
-        [string[]]$RequiredLfsPatterns
+        [string[]]$RequiredLfsPatterns,
+        [string[]]$VersionedRulePaths,
+        [string[]]$RepositoryAssetPaths
     )
 
     $temporaryRoot = $null
-    $temporaryBase = $null
     $environmentVariableNames = @(
         'HOME',
         'USERPROFILE',
@@ -106,7 +107,9 @@ function Test-VersionedRepositoryRules {
     try {
         try {
             $temporaryBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
-            $temporaryRoot = Join-Path $temporaryBase ("RepositoryBaseline-$([System.Guid]::NewGuid().ToString('N'))")
+            $temporaryRoot = [System.IO.Path]::GetFullPath(
+                (Join-Path $temporaryBase ("RepositoryBaseline-$([System.Guid]::NewGuid().ToString('N'))"))
+            )
             $temporaryRepository = Join-Path $temporaryRoot 'repository'
             $temporaryHome = Join-Path $temporaryRoot 'home'
             $emptyGlobalConfig = Join-Path $temporaryRoot 'empty-gitconfig'
@@ -150,14 +153,31 @@ function Test-VersionedRepositoryRules {
         }
 
         $copySucceeded = $true
-        foreach ($ruleFileName in @('.gitignore', '.gitattributes')) {
-            $sourceRulePath = Join-Path $SourceRoot $ruleFileName
-            $temporaryRulePath = Join-Path $temporaryRepository $ruleFileName
+        $sourceRootPrefix = [System.IO.Path]::GetFullPath($SourceRoot).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        $temporaryRepositoryPrefix = [System.IO.Path]::GetFullPath($temporaryRepository).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        foreach ($relativeRulePath in $VersionedRulePaths) {
+            $normalizedRulePath = $relativeRulePath.Replace('\', '/')
             try {
+                if ([System.IO.Path]::IsPathRooted($normalizedRulePath) -or $normalizedRulePath -match '(^|/)\.\.(/|$)') {
+                    throw 'Unsafe relative rule path.'
+                }
+
+                $sourceRulePath = [System.IO.Path]::GetFullPath((Join-Path $SourceRoot $normalizedRulePath))
+                $temporaryRulePath = [System.IO.Path]::GetFullPath((Join-Path $temporaryRepository $normalizedRulePath))
+                if (-not $sourceRulePath.StartsWith($sourceRootPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+                    -not $temporaryRulePath.StartsWith($temporaryRepositoryPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    throw 'Rule path escaped its repository root.'
+                }
+
+                $null = [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($temporaryRulePath))
                 Copy-Item -LiteralPath $sourceRulePath -Destination $temporaryRulePath -ErrorAction Stop
+                $temporaryRuleItem = Get-Item -LiteralPath $temporaryRulePath -Force -ErrorAction Stop
+                if ($temporaryRuleItem.IsReadOnly) {
+                    $temporaryRuleItem.IsReadOnly = $false
+                }
             }
             catch {
-                Add-Failure "Versioned rule file could not be copied for isolated validation: $ruleFileName"
+                Add-Failure "Versioned rule file could not be copied for isolated validation: $normalizedRulePath"
                 $copySucceeded = $false
             }
         }
@@ -172,6 +192,31 @@ function Test-VersionedRepositoryRules {
         }
         catch {
             Add-Failure 'Temporary repository-local Git rules could not be cleared for isolated validation.'
+            return
+        }
+
+        $placeholderCreationSucceeded = $true
+        foreach ($relativeAssetPath in $RepositoryAssetPaths) {
+            $normalizedAssetPath = $relativeAssetPath.Replace('\', '/')
+            try {
+                if ([System.IO.Path]::IsPathRooted($normalizedAssetPath) -or $normalizedAssetPath -match '(^|/)\.\.(/|$)') {
+                    throw 'Unsafe relative asset path.'
+                }
+
+                $temporaryAssetPath = [System.IO.Path]::GetFullPath((Join-Path $temporaryRepository $normalizedAssetPath))
+                if (-not $temporaryAssetPath.StartsWith($temporaryRepositoryPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    throw 'Asset path escaped its repository root.'
+                }
+
+                $null = [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($temporaryAssetPath))
+                [System.IO.File]::WriteAllBytes($temporaryAssetPath, [byte[]]@())
+            }
+            catch {
+                Add-Failure "Temporary asset probe could not be created for isolated validation: $normalizedAssetPath"
+                $placeholderCreationSucceeded = $false
+            }
+        }
+        if (-not $placeholderCreationSucceeded) {
             return
         }
 
@@ -197,19 +242,32 @@ function Test-VersionedRepositoryRules {
             }
         }
 
-        $attributeTargets = @($attributeProbeToPattern.Keys | Sort-Object)
-        $checkAttributeResult = Invoke-NativeCommandSafely -Executable $GitPath -Arguments (
-            $isolatedGitConfiguration + @(
-                '-c', 'core.quotePath=false', '-C', $temporaryRepository,
-                'check-attr', 'filter', 'diff', 'merge', 'text', '--'
-            ) + $attributeTargets
-        )
-        if (-not $checkAttributeResult.Started -or $checkAttributeResult.ExitCode -ne 0) {
-            Add-Failure 'Git check-attr command failed while validating versioned LFS attributes.'
+        $attributeTargets = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($probe in $attributeProbeToPattern.Keys) {
+            $null = $attributeTargets.Add($probe)
         }
-        else {
+        foreach ($assetPath in $RepositoryAssetPaths) {
+            $null = $attributeTargets.Add($assetPath.Replace('\', '/'))
+        }
+
+        $orderedAttributeTargets = @($attributeTargets | Sort-Object)
+        $attributeBatchSize = 50
+        for ($batchStart = 0; $batchStart -lt $orderedAttributeTargets.Count; $batchStart += $attributeBatchSize) {
+            $batchEnd = [Math]::Min($batchStart + $attributeBatchSize - 1, $orderedAttributeTargets.Count - 1)
+            $attributeBatch = @($orderedAttributeTargets[$batchStart..$batchEnd])
+            $checkAttributeResult = Invoke-NativeCommandSafely -Executable $GitPath -Arguments (
+                $isolatedGitConfiguration + @(
+                    '-c', 'core.quotePath=false', '-C', $temporaryRepository,
+                    'check-attr', 'filter', 'diff', 'merge', 'text', '--'
+                ) + $attributeBatch
+            )
+            if (-not $checkAttributeResult.Started -or $checkAttributeResult.ExitCode -ne 0) {
+                Add-Failure 'Git check-attr command failed while validating versioned LFS attributes.'
+                continue
+            }
+
             $attributeLines = @($checkAttributeResult.Output | ForEach-Object { $_.ToString() })
-            foreach ($targetPath in $attributeTargets) {
+            foreach ($targetPath in $attributeBatch) {
                 $expectedAttributeLines = @(
                     "${targetPath}: filter: lfs",
                     "${targetPath}: diff: lfs",
@@ -224,7 +282,12 @@ function Test-VersionedRepositoryRules {
                 }
 
                 if (-not $attributesAreValid) {
-                    Add-Failure "Versioned .gitattributes LFS attributes are invalid for pattern: $($attributeProbeToPattern[$targetPath]) (probe: $targetPath)"
+                    if ($attributeProbeToPattern.ContainsKey($targetPath)) {
+                        Add-Failure "Versioned .gitattributes LFS attributes are invalid for pattern: $($attributeProbeToPattern[$targetPath]) (probe: $targetPath)"
+                    }
+                    else {
+                        Add-Failure "Versioned .gitattributes LFS attributes are invalid for repository asset path: $targetPath"
+                    }
                 }
             }
         }
@@ -249,8 +312,9 @@ function Test-VersionedRepositoryRules {
 
         if (-not [string]::IsNullOrWhiteSpace($temporaryRoot) -and [System.IO.Directory]::Exists($temporaryRoot)) {
             $cleanupIsSafe = $false
+            $normalizedTemporaryRoot = $null
             try {
-                $normalizedTemporaryBase = [System.IO.Path]::GetFullPath($temporaryBase).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+                $normalizedTemporaryBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
                 $normalizedTemporaryRoot = [System.IO.Path]::GetFullPath($temporaryRoot)
                 $cleanupIsSafe = $normalizedTemporaryRoot.StartsWith(
                     $normalizedTemporaryBase,
@@ -265,9 +329,22 @@ function Test-VersionedRepositoryRules {
             }
 
             if ($cleanupIsSafe) {
-                for ($cleanupAttempt = 0; $cleanupAttempt -lt 3 -and [System.IO.Directory]::Exists($temporaryRoot); $cleanupAttempt++) {
+                for ($cleanupAttempt = 0; $cleanupAttempt -lt 3 -and [System.IO.Directory]::Exists($normalizedTemporaryRoot); $cleanupAttempt++) {
                     try {
-                        [System.IO.Directory]::Delete($temporaryRoot, $true)
+                        Get-ChildItem -LiteralPath $normalizedTemporaryRoot -Recurse -Force -File -ErrorAction Stop |
+                            ForEach-Object {
+                                if ($_.IsReadOnly) {
+                                    $_.IsReadOnly = $false
+                                }
+                            }
+                        Get-ChildItem -LiteralPath $normalizedTemporaryRoot -Recurse -Force -Directory -ErrorAction Stop |
+                            Sort-Object -Property FullName -Descending |
+                            ForEach-Object {
+                                $_.Attributes = $_.Attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly)
+                            }
+                        $temporaryRootItem = Get-Item -LiteralPath $normalizedTemporaryRoot -Force -ErrorAction Stop
+                        $temporaryRootItem.Attributes = $temporaryRootItem.Attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly)
+                        Remove-Item -LiteralPath $normalizedTemporaryRoot -Recurse -Force -ErrorAction Stop
                     }
                     catch {
                         if ($cleanupAttempt -lt 2) {
@@ -571,20 +648,6 @@ try {
         if (-not (Test-Path -LiteralPath $gitIgnorePath -PathType Leaf)) {
             Add-Failure '.gitignore is missing.'
         }
-        else {
-            try {
-                $ignoreLines = [System.IO.File]::ReadAllLines($gitIgnorePath)
-                for ($lineIndex = 0; $lineIndex -lt $ignoreLines.Count; $lineIndex++) {
-                    $ignoreLine = $ignoreLines[$lineIndex].TrimEnd()
-                    if ($ignoreLine.StartsWith('!') -and $ignoreLine -cne '!.env.example') {
-                        Add-Failure "Unsafe .gitignore negation at line $($lineIndex + 1); only !.env.example is allowed."
-                    }
-                }
-            }
-            catch {
-                Add-Failure '.gitignore could not be read.'
-            }
-        }
 
         $requiredLfsPatterns = @(
             '*.uasset',
@@ -607,38 +670,124 @@ try {
         }
 
         $ignoreProbes = @(
-                '.superpowers/.repository-baseline-probe',
-                'Plugins/Test/.superpowers/RepositoryBaseline.tmp',
-                'Binaries/.repository-baseline-probe',
-                'Plugins/Test/Binaries/RepositoryBaseline.dll',
-                'DerivedDataCache/.repository-baseline-probe',
-                'Plugins/Test/DerivedDataCache/RepositoryBaseline.tmp',
-                'Intermediate/.repository-baseline-probe',
-                'Source/Test/Intermediate/RepositoryBaseline.obj',
-                'Saved/.repository-baseline-probe',
-                'Plugins/Test/Saved/RepositoryBaseline.sav',
-                '.vs/.repository-baseline-probe',
-                'Source/Test/.vs/RepositoryBaseline.tmp',
-                'Artifacts/.repository-baseline-probe',
-                'Plugins/Test/Artifacts/RepositoryBaseline.tmp',
-                '.idea/RepositoryBaseline.xml',
-                'Plugins/Test/.idea/RepositoryBaseline.xml',
-                'RepositoryBaseline.sln',
-                'Plugins/Test/RepositoryBaseline.sln',
-                'RepositoryBaseline.suo',
-                'Plugins/Test/RepositoryBaseline.suo',
-                'RepositoryBaseline.opensdf',
-                'Plugins/Test/RepositoryBaseline.opensdf',
-                'RepositoryBaseline.sdf',
-                'Plugins/Test/RepositoryBaseline.sdf',
-                'RepositoryBaseline.VC.db',
-                'Source/Test/RepositoryBaseline.VC.db',
-                'RepositoryBaseline.VC.opendb',
-                'Source/Test/RepositoryBaseline.VC.opendb'
+            '.superpowers/.repository-baseline-probe',
+            'Plugins/Test/.superpowers/RepositoryBaseline.tmp',
+            'Binaries/.repository-baseline-probe',
+            'Plugins/Test/Binaries/RepositoryBaseline.dll',
+            'DerivedDataCache/.repository-baseline-probe',
+            'Plugins/Test/DerivedDataCache/RepositoryBaseline.tmp',
+            'Intermediate/.repository-baseline-probe',
+            'Source/Test/Intermediate/RepositoryBaseline.obj',
+            'Saved/.repository-baseline-probe',
+            'Plugins/Test/Saved/RepositoryBaseline.sav',
+            '.vs/.repository-baseline-probe',
+            'Source/Test/.vs/RepositoryBaseline.tmp',
+            'Artifacts/.repository-baseline-probe',
+            'Plugins/Test/Artifacts/RepositoryBaseline.tmp',
+            '.idea/RepositoryBaseline.xml',
+            'Plugins/Test/.idea/RepositoryBaseline.xml',
+            'RepositoryBaseline.sln',
+            'Plugins/Test/RepositoryBaseline.sln',
+            'RepositoryBaseline.suo',
+            'Plugins/Test/RepositoryBaseline.suo',
+            'RepositoryBaseline.opensdf',
+            'Plugins/Test/RepositoryBaseline.opensdf',
+            'RepositoryBaseline.sdf',
+            'Plugins/Test/RepositoryBaseline.sdf',
+            'RepositoryBaseline.VC.db',
+            'Source/Test/RepositoryBaseline.VC.db',
+            'RepositoryBaseline.VC.opendb',
+            'Source/Test/RepositoryBaseline.VC.opendb'
         )
 
+        $versionedRulePaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        $null = $versionedRulePaths.Add('.gitignore')
+        $null = $versionedRulePaths.Add('.gitattributes')
+        $repositoryAssetPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+        try {
+            $rootPrefix = $resolvedRoot.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+            $assetFiles = Get-ChildItem -LiteralPath $resolvedRoot -Recurse -Force -File -ErrorAction Stop
+            foreach ($assetFile in $assetFiles) {
+                $extension = $assetFile.Extension.ToLowerInvariant()
+                if ($requiredLfsExtensions -contains $extension) {
+                    $relativePath = $assetFile.FullName.Substring($rootPrefix.Length).Replace('\', '/')
+                    $null = $repositoryAssetPaths.Add($relativePath)
+                }
+            }
+        }
+        catch {
+            Add-Failure 'Repository asset files could not be enumerated for LFS validation.'
+        }
+
+        if ($gitRepositoryReady) {
+            $trackedFilesResult = Invoke-NativeCommandSafely -Executable $gitPath -Arguments @(
+                '-c', 'core.quotePath=false', '-C', $resolvedRoot, 'ls-files'
+            )
+            if (-not $trackedFilesResult.Started -or $trackedFilesResult.ExitCode -ne 0) {
+                Add-Failure 'Git command failed while enumerating tracked files for repository rule and LFS validation.'
+            }
+            else {
+                foreach ($trackedFileOutput in $trackedFilesResult.Output) {
+                    $trackedPath = $trackedFileOutput.ToString()
+                    if ([string]::IsNullOrWhiteSpace($trackedPath)) {
+                        continue
+                    }
+
+                    $normalizedTrackedPath = $trackedPath.Replace('\', '/')
+                    if ($normalizedTrackedPath -cmatch '(^|/)\.(gitignore|gitattributes)$') {
+                        $null = $versionedRulePaths.Add($normalizedTrackedPath)
+                    }
+
+                    $trackedExtension = [System.IO.Path]::GetExtension($normalizedTrackedPath).ToLowerInvariant()
+                    if ($requiredLfsExtensions -contains $trackedExtension) {
+                        $null = $repositoryAssetPaths.Add($normalizedTrackedPath)
+                    }
+                }
+            }
+        }
+
+        $versionedIgnorePaths = @(
+            $versionedRulePaths |
+                Where-Object { $_ -ceq '.gitignore' -or $_ -clike '*/.gitignore' } |
+                Sort-Object
+        )
+        foreach ($relativeIgnorePath in $versionedIgnorePaths) {
+            $versionedIgnorePath = Join-Path $resolvedRoot $relativeIgnorePath
+            if (-not (Test-Path -LiteralPath $versionedIgnorePath -PathType Leaf)) {
+                if ($relativeIgnorePath -cne '.gitignore') {
+                    Add-Failure "Tracked versioned .gitignore is missing from the worktree: $relativeIgnorePath"
+                }
+                continue
+            }
+
+            try {
+                $ignoreLines = [System.IO.File]::ReadAllLines($versionedIgnorePath)
+                for ($lineIndex = 0; $lineIndex -lt $ignoreLines.Count; $lineIndex++) {
+                    $ignoreLine = $ignoreLines[$lineIndex].TrimEnd()
+                    if ($ignoreLine.StartsWith('!')) {
+                        $isAllowedRootExample = $relativeIgnorePath -ceq '.gitignore' -and $ignoreLine -ceq '!.env.example'
+                        if (-not $isAllowedRootExample) {
+                            Add-Failure "Unsafe versioned .gitignore negation at $relativeIgnorePath line $($lineIndex + 1); only root !.env.example is allowed."
+                        }
+                    }
+                }
+            }
+            catch {
+                Add-Failure "Versioned .gitignore could not be read: $relativeIgnorePath"
+            }
+        }
+
         if ($null -ne $gitPath) {
-            Test-VersionedRepositoryRules -SourceRoot $resolvedRoot -GitPath $gitPath -IgnoreProbes $ignoreProbes -RequiredLfsPatterns $requiredLfsPatterns
+            $versionedRuleArguments = @{
+                SourceRoot = $resolvedRoot
+                GitPath = $gitPath
+                IgnoreProbes = $ignoreProbes
+                RequiredLfsPatterns = $requiredLfsPatterns
+                VersionedRulePaths = @($versionedRulePaths | Sort-Object)
+                RepositoryAssetPaths = @($repositoryAssetPaths | Sort-Object)
+            }
+            Test-VersionedRepositoryRules @versionedRuleArguments
         }
 
         if ($gitRepositoryReady) {
@@ -655,47 +804,10 @@ try {
             }
 
             $attributeProbeToPattern = @{}
-            $attributeProbePrefixes = @('', 'Content/', 'Plugins/UrbanFoundation/Content/')
             foreach ($pattern in $requiredLfsPatterns) {
-                foreach ($prefix in $attributeProbePrefixes) {
+                foreach ($prefix in @('', 'Content/', 'Plugins/UrbanFoundation/Content/')) {
                     $probe = "${prefix}RepositoryBaseline$($pattern.Substring(1))"
                     $attributeProbeToPattern[$probe] = $pattern
-                }
-            }
-
-            $repositoryAssetPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-            try {
-                $rootPrefix = $resolvedRoot.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
-                $assetFiles = Get-ChildItem -LiteralPath $resolvedRoot -Recurse -Force -File -ErrorAction Stop
-                foreach ($assetFile in $assetFiles) {
-                    $extension = $assetFile.Extension.ToLowerInvariant()
-                    if ($requiredLfsExtensions -contains $extension) {
-                        $relativePath = $assetFile.FullName.Substring($rootPrefix.Length).Replace('\', '/')
-                        $null = $repositoryAssetPaths.Add($relativePath)
-                    }
-                }
-            }
-            catch {
-                Add-Failure 'Repository asset files could not be enumerated for LFS validation.'
-            }
-
-            $trackedFilesResult = Invoke-NativeCommandSafely -Executable $gitPath -Arguments @(
-                '-c', 'core.quotePath=false', '-C', $resolvedRoot, 'ls-files'
-            )
-            if (-not $trackedFilesResult.Started -or $trackedFilesResult.ExitCode -ne 0) {
-                Add-Failure 'Git command failed while enumerating tracked files for LFS validation.'
-            }
-            else {
-                foreach ($trackedFileOutput in $trackedFilesResult.Output) {
-                    $trackedPath = $trackedFileOutput.ToString()
-                    if ([string]::IsNullOrWhiteSpace($trackedPath)) {
-                        continue
-                    }
-
-                    $trackedExtension = [System.IO.Path]::GetExtension($trackedPath).ToLowerInvariant()
-                    if ($requiredLfsExtensions -contains $trackedExtension) {
-                        $null = $repositoryAssetPaths.Add($trackedPath.Replace('\', '/'))
-                    }
                 }
             }
 
