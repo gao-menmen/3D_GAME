@@ -360,34 +360,17 @@ try {
     }
 
     if ($rootIsUsable) {
-        $requiredIgnoreRules = @(
-            '.superpowers/',
-            'Binaries/',
-            'DerivedDataCache/',
-            'Intermediate/',
-            'Saved/',
-            '.vs/',
-            'Artifacts/',
-            '*.sln',
-            '*.VC.db'
-        )
         $gitIgnorePath = Join-Path $resolvedRoot '.gitignore'
         if (-not (Test-Path -LiteralPath $gitIgnorePath -PathType Leaf)) {
             Add-Failure '.gitignore is missing.'
         }
         else {
             try {
-                $ignoreLines = @(
-                    [System.IO.File]::ReadAllLines($gitIgnorePath) |
-                        ForEach-Object { $_.Trim() } |
-                        Where-Object {
-                            -not [string]::IsNullOrWhiteSpace($_) -and
-                            -not $_.StartsWith('#')
-                        }
-                )
-                foreach ($rule in $requiredIgnoreRules) {
-                    if ($ignoreLines -notcontains $rule) {
-                        Add-Failure ".gitignore is missing required rule: $rule"
+                $ignoreLines = [System.IO.File]::ReadAllLines($gitIgnorePath)
+                for ($lineIndex = 0; $lineIndex -lt $ignoreLines.Count; $lineIndex++) {
+                    $ignoreLine = $ignoreLines[$lineIndex].TrimEnd()
+                    if ($ignoreLine.StartsWith('!') -and $ignoreLine -cne '!.env.example') {
+                        Add-Failure "Unsafe .gitignore negation at line $($lineIndex + 1); only !.env.example is allowed."
                     }
                 }
             }
@@ -410,59 +393,42 @@ try {
             '*.mp4',
             '*.mov'
         )
+        $requiredLfsExtensions = @($requiredLfsPatterns | ForEach-Object { $_.Substring(1).ToLowerInvariant() })
         $gitAttributesPath = Join-Path $resolvedRoot '.gitattributes'
         if (-not (Test-Path -LiteralPath $gitAttributesPath -PathType Leaf)) {
             Add-Failure '.gitattributes is missing.'
-        }
-        else {
-            try {
-                $attributeLines = [System.IO.File]::ReadAllLines($gitAttributesPath)
-                $requiredAttributeTokens = @('filter=lfs', 'diff=lfs', 'merge=lfs', '-text')
-                foreach ($pattern in $requiredLfsPatterns) {
-                    $requiredRuleIsPresent = $false
-                    foreach ($attributeLine in $attributeLines) {
-                        $trimmedAttributeLine = $attributeLine.Trim()
-                        if ([string]::IsNullOrWhiteSpace($trimmedAttributeLine) -or $trimmedAttributeLine.StartsWith('#')) {
-                            continue
-                        }
-
-                        $attributeTokens = @($trimmedAttributeLine -split '\s+')
-                        if ($attributeTokens.Count -lt 5 -or $attributeTokens[0] -cne $pattern) {
-                            continue
-                        }
-
-                        $missingAttributeTokens = @(
-                            $requiredAttributeTokens |
-                                Where-Object { $attributeTokens -cnotcontains $_ }
-                        )
-                        if ($missingAttributeTokens.Count -eq 0) {
-                            $requiredRuleIsPresent = $true
-                            break
-                        }
-                    }
-
-                    if (-not $requiredRuleIsPresent) {
-                        $expectedRule = "$pattern filter=lfs diff=lfs merge=lfs -text"
-                        Add-Failure ".gitattributes is missing required LFS tokens for pattern: $expectedRule"
-                    }
-                }
-            }
-            catch {
-                Add-Failure '.gitattributes could not be read.'
-            }
         }
 
         if ($gitRepositoryReady) {
             $ignoreProbes = @(
                 '.superpowers/.repository-baseline-probe',
+                'Plugins/Test/.superpowers/RepositoryBaseline.tmp',
                 'Binaries/.repository-baseline-probe',
+                'Plugins/Test/Binaries/RepositoryBaseline.dll',
                 'DerivedDataCache/.repository-baseline-probe',
+                'Plugins/Test/DerivedDataCache/RepositoryBaseline.tmp',
                 'Intermediate/.repository-baseline-probe',
+                'Source/Test/Intermediate/RepositoryBaseline.obj',
                 'Saved/.repository-baseline-probe',
+                'Plugins/Test/Saved/RepositoryBaseline.sav',
                 '.vs/.repository-baseline-probe',
+                'Source/Test/.vs/RepositoryBaseline.tmp',
                 'Artifacts/.repository-baseline-probe',
+                'Plugins/Test/Artifacts/RepositoryBaseline.tmp',
+                '.idea/RepositoryBaseline.xml',
+                'Plugins/Test/.idea/RepositoryBaseline.xml',
                 'RepositoryBaseline.sln',
-                'RepositoryBaseline.VC.db'
+                'Plugins/Test/RepositoryBaseline.sln',
+                'RepositoryBaseline.suo',
+                'Plugins/Test/RepositoryBaseline.suo',
+                'RepositoryBaseline.opensdf',
+                'Plugins/Test/RepositoryBaseline.opensdf',
+                'RepositoryBaseline.sdf',
+                'Plugins/Test/RepositoryBaseline.sdf',
+                'RepositoryBaseline.VC.db',
+                'Source/Test/RepositoryBaseline.VC.db',
+                'RepositoryBaseline.VC.opendb',
+                'Source/Test/RepositoryBaseline.VC.opendb'
             )
             foreach ($probe in $ignoreProbes) {
                 $ignoreResult = Invoke-NativeCommandSafely -Executable $gitPath -Arguments @(
@@ -476,34 +442,96 @@ try {
                 }
             }
 
-            $attributeProbes = @()
+            $attributeProbeToPattern = @{}
+            $attributeProbePrefixes = @('', 'Content/', 'Plugins/UrbanFoundation/Content/')
             foreach ($pattern in $requiredLfsPatterns) {
-                $attributeProbes += "RepositoryBaseline$($pattern.Substring(1))"
+                foreach ($prefix in $attributeProbePrefixes) {
+                    $probe = "${prefix}RepositoryBaseline$($pattern.Substring(1))"
+                    $attributeProbeToPattern[$probe] = $pattern
+                }
             }
-            $checkAttributeArguments = @('-C', $resolvedRoot, 'check-attr', 'filter', 'diff', 'merge', 'text', '--') + $attributeProbes
-            $checkAttributeResult = Invoke-NativeCommandSafely -Executable $gitPath -Arguments $checkAttributeArguments
-            if (-not $checkAttributeResult.Started -or $checkAttributeResult.ExitCode -ne 0) {
-                Add-Failure 'Git check-attr command failed while validating effective LFS attributes.'
+
+            $repositoryAssetPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            try {
+                $rootPrefix = $resolvedRoot.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+                $assetFiles = Get-ChildItem -LiteralPath $resolvedRoot -Recurse -Force -File -ErrorAction Stop
+                foreach ($assetFile in $assetFiles) {
+                    $extension = $assetFile.Extension.ToLowerInvariant()
+                    if ($requiredLfsExtensions -contains $extension) {
+                        $relativePath = $assetFile.FullName.Substring($rootPrefix.Length).Replace('\', '/')
+                        $null = $repositoryAssetPaths.Add($relativePath)
+                    }
+                }
+            }
+            catch {
+                Add-Failure 'Repository asset files could not be enumerated for LFS validation.'
+            }
+
+            $trackedFilesResult = Invoke-NativeCommandSafely -Executable $gitPath -Arguments @(
+                '-c', 'core.quotePath=false', '-C', $resolvedRoot, 'ls-files'
+            )
+            if (-not $trackedFilesResult.Started -or $trackedFilesResult.ExitCode -ne 0) {
+                Add-Failure 'Git command failed while enumerating tracked files for LFS validation.'
             }
             else {
-                $effectiveAttributeLines = @($checkAttributeResult.Output | ForEach-Object { $_.ToString().Trim() })
-                for ($index = 0; $index -lt $requiredLfsPatterns.Count; $index++) {
-                    $pattern = $requiredLfsPatterns[$index]
-                    $probe = $attributeProbes[$index]
+                foreach ($trackedFileOutput in $trackedFilesResult.Output) {
+                    $trackedPath = $trackedFileOutput.ToString()
+                    if ([string]::IsNullOrWhiteSpace($trackedPath)) {
+                        continue
+                    }
+
+                    $trackedExtension = [System.IO.Path]::GetExtension($trackedPath).ToLowerInvariant()
+                    if ($requiredLfsExtensions -contains $trackedExtension) {
+                        $null = $repositoryAssetPaths.Add($trackedPath.Replace('\', '/'))
+                    }
+                }
+            }
+
+            $attributeTargets = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($probe in $attributeProbeToPattern.Keys) {
+                $null = $attributeTargets.Add($probe)
+            }
+            foreach ($assetPath in $repositoryAssetPaths) {
+                $null = $attributeTargets.Add($assetPath)
+            }
+
+            $orderedAttributeTargets = @($attributeTargets | Sort-Object)
+            $attributeBatchSize = 50
+            for ($batchStart = 0; $batchStart -lt $orderedAttributeTargets.Count; $batchStart += $attributeBatchSize) {
+                $batchEnd = [Math]::Min($batchStart + $attributeBatchSize - 1, $orderedAttributeTargets.Count - 1)
+                $attributeBatch = @($orderedAttributeTargets[$batchStart..$batchEnd])
+                $checkAttributeArguments = @(
+                    '-c', 'core.quotePath=false', '-C', $resolvedRoot,
+                    'check-attr', 'filter', 'diff', 'merge', 'text', '--'
+                ) + $attributeBatch
+                $checkAttributeResult = Invoke-NativeCommandSafely -Executable $gitPath -Arguments $checkAttributeArguments
+                if (-not $checkAttributeResult.Started -or $checkAttributeResult.ExitCode -ne 0) {
+                    Add-Failure 'Git check-attr command failed while validating effective LFS attributes.'
+                    continue
+                }
+
+                $effectiveAttributeLines = @($checkAttributeResult.Output | ForEach-Object { $_.ToString() })
+                foreach ($targetPath in $attributeBatch) {
                     $expectedAttributeLines = @(
-                        "${probe}: filter: lfs",
-                        "${probe}: diff: lfs",
-                        "${probe}: merge: lfs",
-                        "${probe}: text: unset"
+                        "${targetPath}: filter: lfs",
+                        "${targetPath}: diff: lfs",
+                        "${targetPath}: merge: lfs",
+                        "${targetPath}: text: unset"
                     )
                     $attributesAreValid = $true
                     foreach ($expectedLine in $expectedAttributeLines) {
-                        if ($effectiveAttributeLines -notcontains $expectedLine) {
+                        if ($effectiveAttributeLines -cnotcontains $expectedLine) {
                             $attributesAreValid = $false
                         }
                     }
+
                     if (-not $attributesAreValid) {
-                        Add-Failure "Effective LFS attributes are invalid for pattern: $pattern"
+                        if ($attributeProbeToPattern.ContainsKey($targetPath)) {
+                            Add-Failure "Effective LFS attributes are invalid for pattern: $($attributeProbeToPattern[$targetPath]) (probe: $targetPath)"
+                        }
+                        else {
+                            Add-Failure "Effective LFS attributes are invalid for repository asset path: $targetPath"
+                        }
                     }
                 }
             }
