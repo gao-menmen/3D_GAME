@@ -1021,9 +1021,9 @@ try {
                                 continue
                             }
                         }
-                        elseif (-not [string]::IsNullOrWhiteSpace($attributePattern) -and
-                            -not $attributePattern.EndsWith('/', [System.StringComparison]::Ordinal) -and
-                            -not (Test-GitAttributePatternHasUnescapedMetaCharacter -Pattern $attributePattern)) {
+                        elseif (-not [string]::IsNullOrWhiteSpace($finalPatternSegment) -and
+                            -not $finalPatternSegment.EndsWith('/', [System.StringComparison]::Ordinal) -and
+                            -not (Test-GitAttributePatternHasUnescapedMetaCharacter -Pattern $finalPatternSegment)) {
                             continue
                         }
                     }
