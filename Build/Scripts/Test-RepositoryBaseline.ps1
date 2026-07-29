@@ -77,6 +77,110 @@ function Convert-CommandOutputToLines {
     )
 }
 
+function Get-GitAttributeRuleParts {
+    param([string]$Line)
+
+    $fallbackTokens = @($Line -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $fallbackPattern = if ($fallbackTokens.Count -gt 0) { $fallbackTokens[0] } else { '' }
+    $fallbackAttributes = if ($fallbackTokens.Count -gt 1) {
+        @($fallbackTokens | Select-Object -Skip 1)
+    }
+    else {
+        @()
+    }
+
+    if (-not $Line.StartsWith('"', [System.StringComparison]::Ordinal)) {
+        return [PSCustomObject]@{
+            Parsed = $true
+            Pattern = $fallbackPattern
+            Attributes = $fallbackAttributes
+        }
+    }
+
+    $patternBuilder = [System.Text.StringBuilder]::new()
+    $closingQuoteIndex = -1
+    $parseSucceeded = $true
+    for ($characterIndex = 1; $characterIndex -lt $Line.Length; $characterIndex++) {
+        $character = $Line[$characterIndex]
+        if ($character -eq [char]34) {
+            $closingQuoteIndex = $characterIndex
+            break
+        }
+
+        if ($character -ne [char]92) {
+            $null = $patternBuilder.Append($character)
+            continue
+        }
+
+        $characterIndex++
+        if ($characterIndex -ge $Line.Length) {
+            $parseSucceeded = $false
+            break
+        }
+
+        $escapedCharacter = $Line[$characterIndex]
+        switch ($escapedCharacter) {
+            '"' { $null = $patternBuilder.Append([char]34) }
+            '\' { $null = $patternBuilder.Append([char]92) }
+            'a' { $null = $patternBuilder.Append([char]7) }
+            'b' { $null = $patternBuilder.Append([char]8) }
+            'f' { $null = $patternBuilder.Append([char]12) }
+            'n' { $null = $patternBuilder.Append([char]10) }
+            'r' { $null = $patternBuilder.Append([char]13) }
+            't' { $null = $patternBuilder.Append([char]9) }
+            'v' { $null = $patternBuilder.Append([char]11) }
+            default {
+                if ($escapedCharacter -ge '0' -and $escapedCharacter -le '7') {
+                    $octalDigits = [string]$escapedCharacter
+                    for ($octalOffset = 1; $octalOffset -lt 3; $octalOffset++) {
+                        $nextIndex = $characterIndex + 1
+                        if ($nextIndex -ge $Line.Length -or
+                            $Line[$nextIndex] -lt '0' -or
+                            $Line[$nextIndex] -gt '7') {
+                            break
+                        }
+
+                        $characterIndex = $nextIndex
+                        $octalDigits += $Line[$characterIndex]
+                    }
+                    $null = $patternBuilder.Append([char][Convert]::ToInt32($octalDigits, 8))
+                }
+                else {
+                    $parseSucceeded = $false
+                }
+            }
+        }
+
+        if (-not $parseSucceeded) {
+            break
+        }
+    }
+
+    if ($closingQuoteIndex -lt 0 -or
+        -not $parseSucceeded -or
+        ($closingQuoteIndex + 1 -lt $Line.Length -and -not [char]::IsWhiteSpace($Line[$closingQuoteIndex + 1]))) {
+        return [PSCustomObject]@{
+            Parsed = $false
+            Pattern = $fallbackPattern
+            Attributes = $fallbackAttributes
+        }
+    }
+
+    $attributeText = $Line.Substring($closingQuoteIndex + 1).Trim()
+    $attributes = if ([string]::IsNullOrWhiteSpace($attributeText)) {
+        @()
+    }
+    else {
+        @($attributeText -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+
+    return [PSCustomObject]@{
+        Parsed = $true
+        Pattern = $patternBuilder.ToString()
+        Attributes = $attributes
+    }
+}
+
 function Test-VersionedRepositoryRules {
     param(
         [string]$SourceRoot,
@@ -851,37 +955,45 @@ try {
                         continue
                     }
 
-                    $attributeTokens = @($attributeLine -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-                    if ($attributeTokens.Count -lt 2) {
+                    $attributeRule = Get-GitAttributeRuleParts -Line $attributeLine
+                    $attributeTokens = @($attributeRule.Attributes)
+                    if ($attributeTokens.Count -eq 0) {
                         continue
                     }
 
-                    $attributePattern = $attributeTokens[0]
+                    $attributePattern = $attributeRule.Pattern
                     $finalPatternSegment = $attributePattern
                     $lastPatternSeparator = $finalPatternSegment.LastIndexOf('/')
                     if ($lastPatternSeparator -ge 0) {
                         $finalPatternSegment = $finalPatternSegment.Substring($lastPatternSeparator + 1)
                     }
 
-                    $extensionSeparator = $finalPatternSegment.LastIndexOf('.')
-                    if ($extensionSeparator -ge 0 -and $extensionSeparator -lt ($finalPatternSegment.Length - 1)) {
-                        $patternExtension = $finalPatternSegment.Substring($extensionSeparator + 1)
-                        $extensionHasPatternSyntax = $false
-                        foreach ($patternCharacter in @('*', '?', '[', ']', '\', '"')) {
-                            if ($patternExtension.Contains($patternCharacter)) {
-                                $extensionHasPatternSyntax = $true
-                                break
+                    if ($attributeRule.Parsed) {
+                        $extensionSeparator = $finalPatternSegment.LastIndexOf('.')
+                        if ($extensionSeparator -ge 0 -and $extensionSeparator -lt ($finalPatternSegment.Length - 1)) {
+                            $patternExtension = $finalPatternSegment.Substring($extensionSeparator + 1)
+                            $extensionHasPatternSyntax = $false
+                            foreach ($patternCharacter in @('*', '?', '[', ']')) {
+                                if ($patternExtension.Contains($patternCharacter)) {
+                                    $extensionHasPatternSyntax = $true
+                                    break
+                                }
+                            }
+
+                            $normalizedPatternExtension = ".$($patternExtension.ToLowerInvariant())"
+                            if (-not $extensionHasPatternSyntax -and $requiredLfsExtensions -cnotcontains $normalizedPatternExtension) {
+                                continue
                             }
                         }
-
-                        $normalizedPatternExtension = ".$($patternExtension.ToLowerInvariant())"
-                        if (-not $extensionHasPatternSyntax -and $requiredLfsExtensions -cnotcontains $normalizedPatternExtension) {
+                        elseif (-not [string]::IsNullOrWhiteSpace($attributePattern) -and
+                            -not $attributePattern.EndsWith('/', [System.StringComparison]::Ordinal) -and
+                            $attributePattern.IndexOfAny([char[]]@('*', '?', '[', ']')) -lt 0) {
                             continue
                         }
                     }
 
                     $hasDestructiveToken = $false
-                    foreach ($attributeToken in @($attributeTokens | Select-Object -Skip 1)) {
+                    foreach ($attributeToken in $attributeTokens) {
                         foreach ($attributeName in @('filter', 'diff', 'merge')) {
                             if ($attributeToken -ceq $attributeName -or
                                 $attributeToken -ceq "-$attributeName" -or
