@@ -67,6 +67,16 @@ function Convert-CommandOutputToText {
     return (($Output | ForEach-Object { $_.ToString() }) -join "`n").Trim()
 }
 
+function Convert-CommandOutputToLines {
+    param([object[]]$Output)
+
+    return @(
+        $Output |
+            ForEach-Object { $_.ToString().Trim() } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+}
+
 function Get-NormalizedRepositoryIdentity {
     param([string]$Value)
 
@@ -110,6 +120,8 @@ function Get-RemoteRepositoryLocation {
         $uri = $null
         if ([System.Uri]::TryCreate($candidate, [System.UriKind]::Absolute, [ref]$uri) -and
             $uri.Scheme -eq 'https' -and
+            [string]::IsNullOrEmpty($uri.UserInfo) -and
+            $uri.IsDefaultPort -and
             [string]::IsNullOrEmpty($uri.Query) -and
             [string]::IsNullOrEmpty($uri.Fragment)) {
             $status = 'Valid'
@@ -122,6 +134,7 @@ function Get-RemoteRepositoryLocation {
         if ([System.Uri]::TryCreate($candidate, [System.UriKind]::Absolute, [ref]$uri) -and
             $uri.Scheme -eq 'ssh' -and
             $uri.UserInfo -eq 'git' -and
+            ($uri.Port -eq -1 -or $uri.Port -eq 22) -and
             [string]::IsNullOrEmpty($uri.Query) -and
             [string]::IsNullOrEmpty($uri.Fragment)) {
             $status = 'Valid'
@@ -245,7 +258,7 @@ try {
 
     if ($null -ne $ghPath -and $null -ne $expectedRepositoryIdentity) {
         $visibilityResult = Invoke-NativeCommandSafely -Executable $ghPath -Arguments @(
-            'repo', 'view', $expectedRepositoryIdentity, '--json', 'visibility', '--jq', '.visibility'
+            'repo', 'view', "github.com/$expectedRepositoryIdentity", '--json', 'visibility', '--jq', '.visibility'
         )
         if (-not $visibilityResult.Started -or $visibilityResult.ExitCode -ne 0) {
             Add-Failure 'GitHub CLI command failed while reading repository visibility.'
@@ -303,26 +316,45 @@ try {
     }
 
     if ($gitRepositoryReady -and $null -ne $expectedRepositoryIdentity) {
-        $originResult = Invoke-NativeCommandSafely -Executable $gitPath -Arguments @(
-            '-C', $resolvedRoot, 'remote', 'get-url', 'origin'
+        $originDestinations = @(
+            [PSCustomObject]@{
+                Kind = 'fetch'
+                Arguments = @('-C', $resolvedRoot, 'remote', 'get-url', '--all', 'origin')
+            },
+            [PSCustomObject]@{
+                Kind = 'push'
+                Arguments = @('-C', $resolvedRoot, 'remote', 'get-url', '--push', '--all', 'origin')
+            }
         )
-        if (-not $originResult.Started -or $originResult.ExitCode -ne 0) {
-            Add-Failure 'Git command failed while reading the origin repository identity.'
-        }
-        else {
-            $originUrl = Convert-CommandOutputToText -Output $originResult.Output
-            $originLocation = Get-RemoteRepositoryLocation -RemoteUrl $originUrl
-            if ($originLocation.Status -eq 'UnverifiedSshHost') {
-                Add-Failure 'Git origin uses a custom SSH host alias that cannot be verified as github.com. Use a canonical github.com origin URL.'
+
+        foreach ($destination in $originDestinations) {
+            $originResult = Invoke-NativeCommandSafely -Executable $gitPath -Arguments $destination.Arguments
+            if (-not $originResult.Started -or $originResult.ExitCode -ne 0) {
+                Add-Failure "Git command failed while reading all origin $($destination.Kind) URLs."
+                continue
             }
-            elseif ($originLocation.Status -ne 'Valid') {
-                Add-Failure 'Git origin URL must use a canonical github.com HTTPS or SSH form.'
+
+            $originUrls = @(Convert-CommandOutputToLines -Output $originResult.Output)
+            if ($originUrls.Count -eq 0) {
+                Add-Failure "Git origin has no $($destination.Kind) URL to validate."
+                continue
             }
-            elseif (-not [string]::Equals($originLocation.Host, 'github.com', [System.StringComparison]::OrdinalIgnoreCase)) {
-                Add-Failure 'Git origin host must be github.com.'
-            }
-            elseif (-not [string]::Equals($originLocation.Repository, $expectedRepositoryIdentity, [System.StringComparison]::OrdinalIgnoreCase)) {
-                Add-Failure 'Git origin repository identity does not match Repository.'
+
+            foreach ($originUrl in $originUrls) {
+                $originLocation = Get-RemoteRepositoryLocation -RemoteUrl $originUrl
+                $destinationContext = " Invalid origin $($destination.Kind) URL."
+                if ($originLocation.Status -eq 'UnverifiedSshHost') {
+                    Add-Failure "Git origin uses a custom SSH host alias that cannot be verified as github.com. Use a canonical github.com origin URL.$destinationContext"
+                }
+                elseif ($originLocation.Status -ne 'Valid') {
+                    Add-Failure "Git origin URL must use a canonical github.com HTTPS, ssh://git@github.com, git@github.com SCP, or github.com SCP form.$destinationContext"
+                }
+                elseif (-not [string]::Equals($originLocation.Host, 'github.com', [System.StringComparison]::OrdinalIgnoreCase)) {
+                    Add-Failure "Git origin host must be github.com.$destinationContext"
+                }
+                elseif (-not [string]::Equals($originLocation.Repository, $expectedRepositoryIdentity, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    Add-Failure "Git origin repository identity does not match Repository.$destinationContext"
+                }
             }
         }
     }
@@ -345,7 +377,14 @@ try {
         }
         else {
             try {
-                $ignoreLines = [System.IO.File]::ReadAllLines($gitIgnorePath)
+                $ignoreLines = @(
+                    [System.IO.File]::ReadAllLines($gitIgnorePath) |
+                        ForEach-Object { $_.Trim() } |
+                        Where-Object {
+                            -not [string]::IsNullOrWhiteSpace($_) -and
+                            -not $_.StartsWith('#')
+                        }
+                )
                 foreach ($rule in $requiredIgnoreRules) {
                     if ($ignoreLines -notcontains $rule) {
                         Add-Failure ".gitignore is missing required rule: $rule"
@@ -378,10 +417,33 @@ try {
         else {
             try {
                 $attributeLines = [System.IO.File]::ReadAllLines($gitAttributesPath)
+                $requiredAttributeTokens = @('filter=lfs', 'diff=lfs', 'merge=lfs', '-text')
                 foreach ($pattern in $requiredLfsPatterns) {
-                    $expectedRule = "$pattern filter=lfs diff=lfs merge=lfs -text"
-                    if ($attributeLines -notcontains $expectedRule) {
-                        Add-Failure ".gitattributes is missing required LFS rule: $expectedRule"
+                    $requiredRuleIsPresent = $false
+                    foreach ($attributeLine in $attributeLines) {
+                        $trimmedAttributeLine = $attributeLine.Trim()
+                        if ([string]::IsNullOrWhiteSpace($trimmedAttributeLine) -or $trimmedAttributeLine.StartsWith('#')) {
+                            continue
+                        }
+
+                        $attributeTokens = @($trimmedAttributeLine -split '\s+')
+                        if ($attributeTokens.Count -lt 5 -or $attributeTokens[0] -cne $pattern) {
+                            continue
+                        }
+
+                        $missingAttributeTokens = @(
+                            $requiredAttributeTokens |
+                                Where-Object { $attributeTokens -cnotcontains $_ }
+                        )
+                        if ($missingAttributeTokens.Count -eq 0) {
+                            $requiredRuleIsPresent = $true
+                            break
+                        }
+                    }
+
+                    if (-not $requiredRuleIsPresent) {
+                        $expectedRule = "$pattern filter=lfs diff=lfs merge=lfs -text"
+                        Add-Failure ".gitattributes is missing required LFS tokens for pattern: $expectedRule"
                     }
                 }
             }
