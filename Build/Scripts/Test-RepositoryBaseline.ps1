@@ -856,6 +856,30 @@ try {
                         continue
                     }
 
+                    $attributePattern = $attributeTokens[0]
+                    $finalPatternSegment = $attributePattern
+                    $lastPatternSeparator = $finalPatternSegment.LastIndexOf('/')
+                    if ($lastPatternSeparator -ge 0) {
+                        $finalPatternSegment = $finalPatternSegment.Substring($lastPatternSeparator + 1)
+                    }
+
+                    $extensionSeparator = $finalPatternSegment.LastIndexOf('.')
+                    if ($extensionSeparator -ge 0 -and $extensionSeparator -lt ($finalPatternSegment.Length - 1)) {
+                        $patternExtension = $finalPatternSegment.Substring($extensionSeparator + 1)
+                        $extensionHasPatternSyntax = $false
+                        foreach ($patternCharacter in @('*', '?', '[', ']', '\', '"')) {
+                            if ($patternExtension.Contains($patternCharacter)) {
+                                $extensionHasPatternSyntax = $true
+                                break
+                            }
+                        }
+
+                        $normalizedPatternExtension = ".$($patternExtension.ToLowerInvariant())"
+                        if (-not $extensionHasPatternSyntax -and $requiredLfsExtensions -cnotcontains $normalizedPatternExtension) {
+                            continue
+                        }
+                    }
+
                     $hasDestructiveToken = $false
                     foreach ($attributeToken in @($attributeTokens | Select-Object -Skip 1)) {
                         foreach ($attributeName in @('filter', 'diff', 'merge')) {
