@@ -89,43 +89,77 @@ function Get-NormalizedRepositoryIdentity {
     return "$($parts[0])/$($parts[1])"
 }
 
-function Get-RemoteRepositoryIdentity {
+function Get-RemoteRepositoryLocation {
     param([string]$RemoteUrl)
 
+    $unsupportedResult = [PSCustomObject]@{
+        Status = 'Unsupported'
+        Host = $null
+        Repository = $null
+    }
     if ([string]::IsNullOrWhiteSpace($RemoteUrl)) {
-        return $null
+        return $unsupportedResult
     }
 
     $candidate = $RemoteUrl.Trim()
+    $status = 'Unsupported'
+    $remoteHost = $null
     $repositoryPath = $null
-    $uri = $null
 
-    if ([System.Uri]::TryCreate($candidate, [System.UriKind]::Absolute, [ref]$uri) -and
-        ($uri.Scheme -eq 'https' -or $uri.Scheme -eq 'ssh')) {
-        $repositoryPath = $uri.AbsolutePath
+    if ($candidate -match '^(?i)https://') {
+        $uri = $null
+        if ([System.Uri]::TryCreate($candidate, [System.UriKind]::Absolute, [ref]$uri) -and
+            $uri.Scheme -eq 'https' -and
+            [string]::IsNullOrEmpty($uri.Query) -and
+            [string]::IsNullOrEmpty($uri.Fragment)) {
+            $status = 'Valid'
+            $remoteHost = $uri.DnsSafeHost
+            $repositoryPath = $uri.AbsolutePath
+        }
     }
-    elseif ($candidate -match '^[^@\s]+@[^:\s]+:(?<RepositoryPath>.+)$') {
+    elseif ($candidate -match '^(?i)ssh://') {
+        $uri = $null
+        if ([System.Uri]::TryCreate($candidate, [System.UriKind]::Absolute, [ref]$uri) -and
+            $uri.Scheme -eq 'ssh' -and
+            $uri.UserInfo -eq 'git' -and
+            [string]::IsNullOrEmpty($uri.Query) -and
+            [string]::IsNullOrEmpty($uri.Fragment)) {
+            $status = 'Valid'
+            $remoteHost = $uri.DnsSafeHost
+            $repositoryPath = $uri.AbsolutePath
+        }
+    }
+    elseif ($candidate -match '^(?:(?<User>[^@:\s]+)@)?(?<Host>[^:\s]+):(?<RepositoryPath>.+)$') {
+        $scpUser = $Matches.User
+        $remoteHost = $Matches.Host
         $repositoryPath = $Matches.RepositoryPath
-    }
-    else {
-        return $null
+        if (-not [string]::IsNullOrWhiteSpace($scpUser) -and $scpUser -ne 'git') {
+            return $unsupportedResult
+        }
+
+        if ([string]::Equals($remoteHost, 'github.com', [System.StringComparison]::OrdinalIgnoreCase)) {
+            $status = 'Valid'
+        }
+        else {
+            $status = 'UnverifiedSshHost'
+        }
     }
 
-    $repositoryPath = $repositoryPath.Trim().Trim('/').Replace('\', '/')
-    $repositoryPath = [System.Text.RegularExpressions.Regex]::Replace(
-        $repositoryPath,
-        '\.git$',
-        '',
-        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
-    )
-    $parts = @($repositoryPath -split '/')
-    if ($parts.Count -ne 2 -or [string]::IsNullOrWhiteSpace($parts[0]) -or [string]::IsNullOrWhiteSpace($parts[1])) {
-        return $null
+    if ($status -eq 'Unsupported') {
+        return $unsupportedResult
     }
 
-    return "$($parts[0])/$($parts[1])"
+    $repositoryIdentity = Get-NormalizedRepositoryIdentity -Value $repositoryPath
+    if ($null -eq $repositoryIdentity) {
+        return $unsupportedResult
+    }
+
+    return [PSCustomObject]@{
+        Status = $status
+        Host = $remoteHost
+        Repository = $repositoryIdentity
+    }
 }
-
 function Test-CsvExactColumnStructure {
     param(
         [string]$Path,
@@ -277,11 +311,17 @@ try {
         }
         else {
             $originUrl = Convert-CommandOutputToText -Output $originResult.Output
-            $originIdentity = Get-RemoteRepositoryIdentity -RemoteUrl $originUrl
-            if ($null -eq $originIdentity) {
-                Add-Failure 'Git origin URL is not a supported HTTPS or SSH repository URL.'
+            $originLocation = Get-RemoteRepositoryLocation -RemoteUrl $originUrl
+            if ($originLocation.Status -eq 'UnverifiedSshHost') {
+                Add-Failure 'Git origin uses a custom SSH host alias that cannot be verified as github.com. Use a canonical github.com origin URL.'
             }
-            elseif (-not [string]::Equals($originIdentity, $expectedRepositoryIdentity, [System.StringComparison]::OrdinalIgnoreCase)) {
+            elseif ($originLocation.Status -ne 'Valid') {
+                Add-Failure 'Git origin URL must use a canonical github.com HTTPS or SSH form.'
+            }
+            elseif (-not [string]::Equals($originLocation.Host, 'github.com', [System.StringComparison]::OrdinalIgnoreCase)) {
+                Add-Failure 'Git origin host must be github.com.'
+            }
+            elseif (-not [string]::Equals($originLocation.Repository, $expectedRepositoryIdentity, [System.StringComparison]::OrdinalIgnoreCase)) {
                 Add-Failure 'Git origin repository identity does not match Repository.'
             }
         }
