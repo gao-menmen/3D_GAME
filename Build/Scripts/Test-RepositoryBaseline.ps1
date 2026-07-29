@@ -181,6 +181,31 @@ function Get-GitAttributeRuleParts {
     }
 }
 
+function Test-GitAttributePatternHasUnescapedMetaCharacter {
+    param([string]$Pattern)
+
+    $consecutiveBackslashes = 0
+    for ($characterIndex = 0; $characterIndex -lt $Pattern.Length; $characterIndex++) {
+        $character = $Pattern[$characterIndex]
+        if ($character -eq [char]92) {
+            $consecutiveBackslashes++
+            continue
+        }
+
+        $isMetaCharacter = $character -eq [char]42 -or
+            $character -eq [char]63 -or
+            $character -eq [char]91 -or
+            $character -eq [char]93
+        if ($isMetaCharacter -and ($consecutiveBackslashes % 2) -eq 0) {
+            return $true
+        }
+
+        $consecutiveBackslashes = 0
+    }
+
+    return $false
+}
+
 function Test-VersionedRepositoryRules {
     param(
         [string]$SourceRoot,
@@ -987,7 +1012,7 @@ try {
                         }
                         elseif (-not [string]::IsNullOrWhiteSpace($attributePattern) -and
                             -not $attributePattern.EndsWith('/', [System.StringComparison]::Ordinal) -and
-                            $attributePattern.IndexOfAny([char[]]@('*', '?', '[', ']')) -lt 0) {
+                            -not (Test-GitAttributePatternHasUnescapedMetaCharacter -Pattern $attributePattern)) {
                             continue
                         }
                     }
