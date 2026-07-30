@@ -11,6 +11,8 @@ Artifacts/
 
 # IDE generated files
 *.sln
+*.slnx
+.vsconfig
 *.suo
 *.opensdf
 *.sdf
