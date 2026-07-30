@@ -19,3 +19,6 @@ Plugins/UrbanFoundation/Source/**/*.Build.cs text eol=lf
 Plugins/UrbanFoundation/Source/**/*.cpp text eol=lf
 Build/Scripts/Invoke-UrbanBuild.ps1 text eol=lf
 Build/Scripts/Invoke-UrbanAutomation.ps1 text eol=lf
+Build/Scripts/Build-WindowsDevelopment.ps1 text eol=lf
+Build/Scripts/Test-PackagedBuild.ps1 text eol=lf
+docs/build/windows-development.md text eol=lf
