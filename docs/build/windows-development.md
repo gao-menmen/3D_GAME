@@ -21,9 +21,8 @@ The integrated-GPU workstation is approved only for a 720p, low-quality **functi
 Use the archive-root launcher (not the nested runtime binary):
 
 ```powershell
-$executables = @(Get-ChildItem -LiteralPath .\Artifacts\Windows-Development -Recurse -File -Filter UrbanSpear.exe)
-if ($executables.Count -ne 1) { throw "Expected exactly one UrbanSpear.exe; found $($executables.Count)." }
-$exe = $executables[0]
+$exe = Get-Item -LiteralPath .\Artifacts\Windows-Development\UrbanSpear.exe -ErrorAction Stop
+if ($exe -isnot [System.IO.FileInfo]) { throw "Packaged launcher is not a file: $($exe.FullName)" }
 ```
 
 Then start it visibly at low settings:
