@@ -1,2 +1,26 @@
-﻿# Local brainstorming companion artifacts
+# Local brainstorming companion artifacts
 .superpowers/
+
+# Unreal generated content
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+Artifacts/
+
+# IDE generated files
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+.idea/
+
+# Local settings and secrets
+*.user
+*.userprefs
+.env
+.env.*
+!.env.example
