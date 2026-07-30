@@ -8,6 +8,50 @@ if ([string]::IsNullOrWhiteSpace($Root)) {
 }
 
 $failures = [System.Collections.Generic.List[string]]::new()
+
+function Get-IniSectionEntries {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$SectionName
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "INI file is missing: $Path"
+    }
+
+    $sectionCount = 0
+    $insideSection = $false
+    $entries = @{}
+    foreach ($line in Get-Content -LiteralPath $Path -ErrorAction Stop) {
+        if ($line -match '^\s*\[(?<Section>[^\]]+)\]\s*$') {
+            $insideSection = [string]::Equals(
+                $Matches.Section.Trim(),
+                $SectionName,
+                [System.StringComparison]::OrdinalIgnoreCase
+            )
+            if ($insideSection) {
+                $sectionCount++
+            }
+            continue
+        }
+        if (-not $insideSection -or $line -match '^\s*(?:;|#|$)') {
+            continue
+        }
+        if ($line -match '^\s*(?<Key>[^=]+?)\s*=\s*(?<Value>.*)\s*$') {
+            $key = $Matches.Key.Trim()
+            $value = $Matches.Value.Trim()
+            if (-not $entries.ContainsKey($key)) {
+                $entries[$key] = [System.Collections.Generic.List[string]]::new()
+            }
+            $entries[$key].Add($value)
+        }
+    }
+
+    return [PSCustomObject]@{
+        SectionCount = $sectionCount
+        Entries = $entries
+    }
+}
 $projectPath = Join-Path $Root 'UrbanSpear.uproject'
 if (-not (Test-Path $projectPath)) {
     $failures.Add('UrbanSpear.uproject is missing.')
@@ -42,6 +86,44 @@ else {
     if ($editorTargetContent -notmatch 'GeneratedProjectName\s*=\s*"UrbanSpearTargets"') {
         $failures.Add('Editor target must isolate its generated project name.')
     }
+}
+
+$defaultEnginePath = Join-Path $Root 'Config\DefaultEngine.ini'
+try {
+    $buildSettings = Get-IniSectionEntries -Path $defaultEnginePath -SectionName '/Script/BuildSettings.BuildSettings'
+    if ($buildSettings.SectionCount -ne 1) {
+        $failures.Add("DefaultEngine.ini must contain exactly one [/Script/BuildSettings.BuildSettings] section; found $($buildSettings.SectionCount).")
+    }
+    else {
+        foreach ($expectedEntry in @(
+            [PSCustomObject]@{ Key = 'DefaultGameTarget'; Value = 'UrbanSpear' },
+            [PSCustomObject]@{ Key = 'DefaultEditorTarget'; Value = 'UrbanSpearEditor' }
+        )) {
+            $matchingKeys = @($buildSettings.Entries.Keys | Where-Object {
+                [string]::Equals($_, $expectedEntry.Key, [System.StringComparison]::OrdinalIgnoreCase)
+            })
+            $values = @()
+            if ($matchingKeys.Count -eq 1) {
+                $values = @($buildSettings.Entries[$matchingKeys[0]])
+            }
+            if ($matchingKeys.Count -ne 1 -or $values.Count -ne 1 -or -not [string]::Equals(
+                [string]$values[0],
+                $expectedEntry.Value,
+                [System.StringComparison]::Ordinal
+            )) {
+                $actual = if ($values.Count -eq 0) { '<missing>' } else { $values -join ', ' }
+                $failures.Add("DefaultEngine.ini [/Script/BuildSettings.BuildSettings] must set $($expectedEntry.Key)=$($expectedEntry.Value) exactly once; actual: $actual")
+            }
+        }
+    }
+}
+catch {
+    $failures.Add("DefaultEngine.ini build target validation failed: $($_.Exception.Message)")
+}
+
+$defaultEngineText = Get-Content -LiteralPath $defaultEnginePath -Raw -ErrorAction Stop
+if ($defaultEngineText -match '(?mi)^\s*\+VulkanTargetedShaderFormats\s*=') {
+    $failures.Add('Windows packaging must not target Vulkan; the foundation build supports DirectX on Windows.')
 }
 
 $ini = Get-Content (Join-Path $Root 'Config\DefaultGame.ini') -Raw

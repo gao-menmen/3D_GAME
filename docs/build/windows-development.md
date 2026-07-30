@@ -10,15 +10,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Build\Scripts\Build-Window
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Build\Scripts\Test-PackagedBuild.ps1
 ```
 
-`Build-WindowsDevelopment.ps1` always archives to `Artifacts/Windows-Development` under the resolved repository root. It removes only that fixed directory after rejecting reparse points, records build provenance, and requires exactly one packaged `UrbanSpear.exe`. `Artifacts/` is ignored and must not be committed.
+`Build-WindowsDevelopment.ps1` always archives to `Artifacts/Windows-Development` under the resolved repository root. It removes only that fixed directory after rejecting reparse points, records build provenance, and requires the packaged launcher at `Artifacts/Windows-Development/UrbanSpear.exe`. Unreal also places the larger runtime binary under `UrbanSpear/Binaries/Win64`; both files are expected. `Artifacts/` is ignored and must not be committed.
 
-`Test-PackagedBuild.ps1` accepts only a recent package produced for the same repository and fixed archive. The default maximum age is 240 minutes and can be adjusted for a deliberate delayed test, for example `-MaxBuildAgeMinutes 480`. It launches the unique executable without a visible window, waits up to 90 seconds, checks its exit code, and terminates it on timeout.
+`Test-PackagedBuild.ps1` accepts only a recent package produced for the same repository and fixed archive. The default maximum age is 240 minutes and can be adjusted for a deliberate delayed test, for example `-MaxBuildAgeMinutes 480`. It launches the archive-root launcher without a visible window, waits up to 90 seconds, checks its exit code, and terminates it on timeout.
 
 ## Manual 720p functionality check
 
 The integrated-GPU workstation is approved only for a 720p, low-quality **functionality check**. This is not final visual-quality, Lumen/Nanite, or 1080p/60 FPS acceptance.
 
-First locate exactly one executable:
+Use the archive-root launcher (not the nested runtime binary):
 
 ```powershell
 $executables = @(Get-ChildItem -LiteralPath .\Artifacts\Windows-Development -Recurse -File -Filter UrbanSpear.exe)

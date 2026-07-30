@@ -222,13 +222,14 @@ if (-not (Test-Path -LiteralPath $archive -PathType Container)) {
 }
 $archiveFiles = @(Get-FilesFromSafeDirectoryTree -Path $archive -Label 'Windows Development archive path')
 
-$executables = @($archiveFiles | Where-Object {
-    [string]::Equals($_.Name, 'UrbanSpear.exe', [System.StringComparison]::OrdinalIgnoreCase)
+$expectedLauncherPath = [System.IO.Path]::GetFullPath((Join-Path $archive 'UrbanSpear.exe'))
+$launchers = @($archiveFiles | Where-Object {
+    [string]::Equals([System.IO.Path]::GetFullPath($_.FullName), $expectedLauncherPath, [System.StringComparison]::OrdinalIgnoreCase)
 })
-if ($executables.Count -ne 1) {
-    throw "Expected exactly one UrbanSpear.exe; found $($executables.Count) under $archive"
+if ($launchers.Count -ne 1) {
+    throw "Expected the packaged launcher at $expectedLauncherPath; found $($launchers.Count)."
 }
-$executable = $executables[0]
+$executable = $launchers[0]
 
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     throw "Build provenance manifest is missing: $manifestPath"
@@ -298,7 +299,7 @@ if (-not $recordedExecutable.StartsWith($archivePrefix, [System.StringComparison
     throw "Build provenance executable resolves outside the archive: $recordedExecutable"
 }
 if (-not [string]::Equals($recordedExecutable, [System.IO.Path]::GetFullPath($executable.FullName), [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "Build provenance executable does not match the unique UrbanSpear.exe: $recordedExecutable"
+    throw "Build provenance executable does not match the packaged launcher: $recordedExecutable"
 }
 
 $startedText = Get-RequiredStringProperty -Object $manifest -PropertyName 'buildStartedUtc' -Label 'Build provenance manifest'

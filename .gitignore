@@ -8,6 +8,9 @@ Intermediate/
 Saved/
 .vs/
 Artifacts/
+/Build/Windows/FileOpenOrder/EditorOpenOrder.log
+/Build/Windows/FileOpenOrder/CookerOpenOrder.log
+/Build/Windows/ChunkLayerInfo/pakchunklayers.txt
 
 # IDE generated files
 *.sln

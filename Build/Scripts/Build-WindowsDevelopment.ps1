@@ -151,15 +151,16 @@ $buildCompletedUtc = [DateTime]::UtcNow
 
 Assert-NoReparsePointInExistingPath -Path $archive -Boundary $resolvedRoot -Label 'Windows Development archive path'
 $archiveFiles = @(Get-FilesFromSafeDirectoryTree -Path $archive -Label 'Windows Development archive path')
-$executables = @($archiveFiles | Where-Object {
-    [string]::Equals($_.Name, 'UrbanSpear.exe', [System.StringComparison]::OrdinalIgnoreCase)
+$expectedLauncherPath = [System.IO.Path]::GetFullPath((Join-Path $archive 'UrbanSpear.exe'))
+$launchers = @($archiveFiles | Where-Object {
+    [string]::Equals([System.IO.Path]::GetFullPath($_.FullName), $expectedLauncherPath, [System.StringComparison]::OrdinalIgnoreCase)
 })
-if ($executables.Count -ne 1) {
-    throw "Expected exactly one UrbanSpear.exe after BuildCookRun; found $($executables.Count) under $archive"
+if ($launchers.Count -ne 1) {
+    throw "Expected the packaged launcher at $expectedLauncherPath after BuildCookRun; found $($launchers.Count)."
 }
 
 $archivePrefix = $archive.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
-$executableFullPath = [System.IO.Path]::GetFullPath($executables[0].FullName)
+$executableFullPath = [System.IO.Path]::GetFullPath($launchers[0].FullName)
 if (-not $executableFullPath.StartsWith($archivePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Packaged executable resolved outside the archive: $executableFullPath"
 }
