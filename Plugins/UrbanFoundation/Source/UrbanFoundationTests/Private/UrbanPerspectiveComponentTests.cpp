@@ -2,8 +2,12 @@
 #include "AbilitySystem/LyraAbilitySystemComponent.h"
 #include "Character/UrbanCharacterStateComponent.h"
 #include "Character/UrbanPerspectiveComponent.h"
+#include "Character/UrbanPerspectivePresentationComponent.h"
 #include "Character/UrbanViewPolicyComponent.h"
 #include "Engine/Engine.h"
+#include "Components/BoxComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Misc/AutomationTest.h"
@@ -160,6 +164,149 @@ bool FUrbanPerspectiveStateMachineTest::RunTest(const FString& Parameters)
     PerspectiveComponent->ServerRequestPerspective(EUrbanPerspective::FirstPerson);
     PerspectiveComponent->RequestToggleShoulder();
     TestEqual(TEXT("first person ignores shoulder requests"), PerspectiveComponent->GetAcceptedPerspective(), EUrbanPerspective::FirstPerson);
+
+    World->EndPlay(EEndPlayReason::Quit);
+    GEngine->DestroyWorldContext(World);
+    World->DestroyWorld(false);
+
+    return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FUrbanPerspectivePresentationVisibilityTest,
+    "UrbanSpear.CharacterCamera.Presentation.OwnerVisibility",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FUrbanPerspectivePresentationVisibilityTest::RunTest(const FString& Parameters)
+{
+    (void)Parameters;
+    using namespace UrbanPerspectiveComponentTests;
+
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+    FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+    WorldContext.SetCurrentWorld(World);
+    APawn* Pawn = World->SpawnActor<APawn>();
+    ULyraAbilitySystemComponent* AbilitySystem = NewObject<ULyraAbilitySystemComponent>(Pawn);
+    UUrbanCharacterStateComponent* StateComponent = NewObject<UUrbanCharacterStateComponent>(Pawn);
+    UUrbanViewPolicyComponent* PolicyComponent = NewObject<UUrbanViewPolicyComponent>(Pawn);
+    UUrbanPerspectiveComponent* PerspectiveComponent = NewObject<UUrbanPerspectiveComponent>(Pawn);
+    UUrbanPerspectivePresentationComponent* PresentationComponent = NewObject<UUrbanPerspectivePresentationComponent>(Pawn);
+    USkeletalMeshComponent* WorldBody = NewObject<USkeletalMeshComponent>(Pawn);
+    USkeletalMeshComponent* FirstPersonArms = NewObject<USkeletalMeshComponent>(Pawn);
+    UStaticMeshComponent* FirstPersonWeapon = NewObject<UStaticMeshComponent>(Pawn);
+
+    WorldBody->ComponentTags.Add(FName(TEXT("Urban.WorldBody")));
+    FirstPersonArms->ComponentTags.Add(FName(TEXT("Urban.FirstPersonArms")));
+    FirstPersonWeapon->ComponentTags.Add(FName(TEXT("Urban.FirstPersonWeapon")));
+    WorldBody->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    WorldBody->SetCastShadow(true);
+    WorldBody->SetIsReplicated(true);
+
+    UActorComponent* Components[] = {
+        AbilitySystem,
+        StateComponent,
+        PolicyComponent,
+        PerspectiveComponent,
+        PresentationComponent,
+        WorldBody,
+        FirstPersonArms,
+        FirstPersonWeapon,
+    };
+    for (UActorComponent* Component : Components)
+    {
+        AttachComponent(Pawn, Component);
+        Component->RegisterComponent();
+    }
+
+    World->InitializeActorsForPlay(FURL());
+    World->BeginPlay();
+    Pawn->DispatchBeginPlay();
+
+    TestTrue(TEXT("first person hides the world body from its owner only"), WorldBody->bOwnerNoSee);
+    TestTrue(TEXT("first-person arms are restricted to the owner"), FirstPersonArms->bOnlyOwnerSee);
+    TestFalse(TEXT("first-person arms are visible to the owner in first person"), FirstPersonArms->bOwnerNoSee);
+    TestTrue(TEXT("first-person weapon is restricted to the owner"), FirstPersonWeapon->bOnlyOwnerSee);
+    TestFalse(TEXT("first-person weapon is visible to the owner in first person"), FirstPersonWeapon->bOwnerNoSee);
+    TestEqual(TEXT("presentation does not disable world-body collision"), WorldBody->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
+    TestTrue(TEXT("presentation preserves world-body shadow casting"), WorldBody->CastShadow);
+    TestTrue(TEXT("presentation preserves world-body replication"), WorldBody->GetIsReplicated());
+
+    PerspectiveComponent->ServerRequestPerspective(EUrbanPerspective::ThirdPersonRight);
+
+    TestFalse(TEXT("third person restores the world body for the owner"), WorldBody->bOwnerNoSee);
+    TestTrue(TEXT("third person hides first-person arms from the owner"), FirstPersonArms->bOwnerNoSee);
+    TestTrue(TEXT("third person hides first-person weapon from the owner"), FirstPersonWeapon->bOwnerNoSee);
+    TestTrue(TEXT("third-person transition keeps arms owner-only"), FirstPersonArms->bOnlyOwnerSee);
+    TestTrue(TEXT("third-person transition keeps weapon owner-only"), FirstPersonWeapon->bOnlyOwnerSee);
+
+    World->EndPlay(EEndPlayReason::Quit);
+    GEngine->DestroyWorldContext(World);
+    World->DestroyWorld(false);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FUrbanMuzzleObstructionTraceTest,
+    "UrbanSpear.CharacterCamera.Presentation.MuzzleObstruction",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FUrbanMuzzleObstructionTraceTest::RunTest(const FString& Parameters)
+{
+    (void)Parameters;
+    using namespace UrbanPerspectiveComponentTests;
+
+    AddExpectedError(
+        TEXT("has no component tagged Urban.FirstPersonArms"),
+        EAutomationExpectedErrorFlags::Contains,
+        1);
+
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+    FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+    WorldContext.SetCurrentWorld(World);
+    APawn* Pawn = World->SpawnActor<APawn>();
+    UUrbanPerspectivePresentationComponent* PresentationComponent = NewObject<UUrbanPerspectivePresentationComponent>(Pawn);
+    UBoxComponent* OwnerCollider = NewObject<UBoxComponent>(Pawn);
+    OwnerCollider->SetBoxExtent(FVector(20.0, 20.0, 20.0));
+    OwnerCollider->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    OwnerCollider->SetCollisionResponseToAllChannels(ECR_Block);
+    AttachComponent(Pawn, OwnerCollider);
+    OwnerCollider->RegisterComponent();
+    Pawn->SetRootComponent(OwnerCollider);
+    AttachComponent(Pawn, PresentationComponent);
+    PresentationComponent->RegisterComponent();
+
+    AActor* Wall = World->SpawnActor<AActor>();
+    UBoxComponent* WallCollider = NewObject<UBoxComponent>(Wall);
+    WallCollider->SetBoxExtent(FVector(10.0, 100.0, 100.0));
+    WallCollider->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    WallCollider->SetCollisionResponseToAllChannels(ECR_Block);
+    Wall->SetRootComponent(WallCollider);
+    Wall->AddInstanceComponent(WallCollider);
+    WallCollider->RegisterComponent();
+    Wall->SetActorLocation(FVector(100.0, 0.0, 0.0));
+
+    World->InitializeActorsForPlay(FURL());
+    World->BeginPlay();
+    Pawn->DispatchBeginPlay();
+    Wall->DispatchBeginPlay();
+    PresentationComponent->RefreshPresentation();
+    PresentationComponent->RefreshPresentation();
+
+    const FUrbanMuzzleObstructionResult Result = PresentationComponent->TraceMuzzleToAim(
+        FVector::ZeroVector,
+        FVector(200.0, 0.0, 0.0));
+
+    TestTrue(TEXT("wall obstructs muzzle-to-aim visibility trace"), Result.bObstructed);
+    TestEqual(TEXT("obstruction reports the wall rather than the ignored owner"), Result.HitActor.Get(), Wall);
+    TestTrue(TEXT("obstruction impact lies on the wall"), FMath::IsNearlyEqual(Result.ImpactPoint.X, 90.0, 1.0));
+
+    const FUrbanMuzzleObstructionResult ClearResult = PresentationComponent->TraceMuzzleToAim(
+        FVector::ZeroVector,
+        FVector(0.0, 200.0, 0.0));
+    TestFalse(TEXT("clear muzzle-to-aim path is not obstructed"), ClearResult.bObstructed);
+    TestNull(TEXT("clear trace has no hit actor"), ClearResult.HitActor.Get());
 
     World->EndPlay(EEndPlayReason::Quit);
     GEngine->DestroyWorldContext(World);
