@@ -1,0 +1,52 @@
+{
+    "schemaVersion": 1,
+    "requiredPaths": [
+        "Plugins/UrbanFoundation/Source/UrbanCore/Public/Character/UrbanPerspectiveComponent.h",
+        "Plugins/UrbanFoundation/Source/UrbanCore/Public/Character/UrbanPerspectivePresentationComponent.h",
+        "Plugins/UrbanFoundation/Source/UrbanCore/Public/Input/UrbanPerspectiveInputComponent.h",
+        "Plugins/UrbanFoundation/Source/UrbanCore/Public/Camera/LyraCameraMode_UrbanPerspective.h",
+        "Plugins/UrbanFoundation/Content/Input/Actions/IA_UrbanTogglePerspective.uasset",
+        "Plugins/UrbanFoundation/Content/Input/Actions/IA_UrbanToggleShoulder.uasset",
+        "Plugins/UrbanFoundation/Content/Input/Mappings/IMC_UrbanPerspective_KBM.uasset",
+        "Plugins/UrbanFoundation/Content/Characters/BP_UrbanTestPawn.uasset",
+        "Plugins/UrbanFoundation/Content/Camera/DA_UrbanCamera_Default.uasset",
+        "Plugins/UrbanFoundation/Content/Experiences/B_UrbanCharacterCameraExperience.uasset",
+        "Plugins/UrbanFoundation/Content/Maps/L_UrbanCharacterCameraTest.umap",
+        "docs/build/character-camera-verification.md",
+        "Build/Editor/Create-UrbanCharacterCameraAssets.py",
+        "Build/Editor/Configure-UrbanCharacterCameraMap.py",
+        "Build/Editor/Verify-UrbanCharacterCameraAssets.py",
+        "Plugins/UrbanFoundation/Source/UrbanFoundationEditor/UrbanFoundationEditor.Build.cs",
+        "Plugins/UrbanFoundation/Source/UrbanFoundationEditor/Public/UrbanEditorAssetLibrary.h",
+        "Plugins/UrbanFoundation/Source/UrbanFoundationEditor/Private/UrbanEditorAssetLibrary.cpp",
+        "Plugins/UrbanFoundation/Source/UrbanFoundationEditor/Private/UrbanFoundationEditorModule.cpp",
+        "Plugins/UrbanFoundation/Source/UrbanCore/Public/Testing/UrbanCharacterCameraTestStation.h",
+        "Plugins/UrbanFoundation/Source/UrbanCore/Private/Testing/UrbanCharacterCameraTestStation.cpp",
+        "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanCharacterCameraTestStationTests.cpp",
+        "Build/Scripts/Test-CharacterCameraMilestone.ps1"
+    ],
+    "requiredUrbanCoreDependencies": [
+        "Core",
+        "CoreUObject",
+        "Engine",
+        "GameplayTags",
+        "ModularGameplay",
+        "LyraGame",
+        "GameplayAbilities",
+        "NetCore",
+        "EnhancedInput"
+    ],
+    "requiredTests": [
+        "UrbanSpear.CharacterCamera.CameraMode.Contract",
+        "UrbanSpear.CharacterCamera.CameraSettings.Defaults",
+        "UrbanSpear.CharacterCamera.CameraSettings.Sanitize",
+        "UrbanSpear.CharacterCamera.Components.CharacterState",
+        "UrbanSpear.CharacterCamera.Components.ViewPolicyAuthority",
+        "UrbanSpear.CharacterCamera.Input.Assets",
+        "UrbanSpear.CharacterCamera.Presentation.MuzzleObstruction",
+        "UrbanSpear.CharacterCamera.Presentation.OwnerVisibility",
+        "UrbanSpear.CharacterCamera.Rules.PerspectiveDecisions",
+        "UrbanSpear.CharacterCamera.StateMachine.PerspectiveLifecycle",
+        "UrbanSpear.CharacterCamera.Integration.TestStation"
+    ]
+}
