@@ -4,7 +4,7 @@ Project Urban Spear is a Windows 64-bit near-future tactical shooter built with 
 
 ## Current milestone
 
-The current milestone provides a reproducible UE/Lyra project, seven Urban module boundaries, automated smoke tests, and a packaged Windows Development build.
+The current milestone adds the server-authoritative first-person/third-person character-camera foundation, shoulder switching, gameplay-state restrictions, a dedicated test route, 11 character-camera automation tests, and a packaged Windows Development build. Manual packaged-game acceptance is still pending because the Windows session must be unlocked for visual and input checks.
 
 ## Requirements
 
@@ -29,3 +29,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Build\Scripts\Test-Package
 ```
 
 The repository remains private while it contains licensed source payload. Unreal binary assets use Git LFS. Generated folders, builds, secrets, and local settings are excluded from Git.
+
+## Character and camera milestone
+
+- [Design specification](docs/superpowers/specs/2026-07-31-urban-spear-character-camera-design.md)
+- [Implementation plan](docs/superpowers/plans/2026-07-31-urban-spear-character-camera.md)
+- [Build and acceptance record](docs/build/character-camera-verification.md)
+- Test map: `/UrbanFoundation/Maps/L_UrbanCharacterCameraTest`
+- Controls: `V` perspective, `Q` shoulder
+
+Run the character-camera gate after the automation suite:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Build\Scripts\Test-CharacterCameraMilestone.ps1
+```
