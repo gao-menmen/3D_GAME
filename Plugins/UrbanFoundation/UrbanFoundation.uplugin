@@ -6,7 +6,7 @@
     "Description":  "Shared runtime boundaries and tests.",
     "Category":  "Urban Spear",
     "EnabledByDefault":  true,
-    "CanContainContent":  false,
+    "CanContainContent":  true,
     "Modules":  [
                     {
                         "Name":  "UrbanCore",
