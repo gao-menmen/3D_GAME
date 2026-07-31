@@ -1,0 +1,13 @@
+{
+  "Plugin": "UrbanFoundation",
+  "RuntimeModules": [
+    "UrbanCore",
+    "UrbanCombat",
+    "UrbanAI",
+    "UrbanMission",
+    "UrbanModes",
+    "UrbanUI",
+    "UrbanOnline"
+  ],
+  "TestModule": "UrbanFoundationTests"
+}

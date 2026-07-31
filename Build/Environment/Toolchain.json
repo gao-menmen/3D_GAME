@@ -1,0 +1,20 @@
+﻿{
+    "UnrealEngine":  {
+                         "MajorMinor":  "5.8",
+                         "DefaultRoot":  "C:\\Program Files\\Epic Games\\UE_5.8"
+                     },
+    "VisualStudio":  {
+                         "MinimumVersion":  "18.0.0",
+                         "RequiredWorkload":  "Microsoft.VisualStudio.Workload.NativeGame"
+                     },
+    "WindowsSdk":  {
+                       "MinimumVersion":  "10.0.26100.0"
+                   },
+    "Lyra":  {
+                 "ProjectFile":  "Lyra.uproject",
+                 "DefaultRoot":  "C:\\Users\\gao-menmen\\Documents\\Unreal Projects\\LyraStarterGame"
+             },
+    "Disk":  {
+                 "MinimumFreeGb":  120
+             }
+}

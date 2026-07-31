@@ -1,0 +1,52 @@
+{
+    "FileVersion":  3,
+    "Version":  1,
+    "VersionName":  "0.1.0",
+    "FriendlyName":  "Urban Spear Foundation",
+    "Description":  "Shared runtime boundaries and tests.",
+    "Category":  "Urban Spear",
+    "EnabledByDefault":  true,
+    "CanContainContent":  false,
+    "Modules":  [
+                    {
+                        "Name":  "UrbanCore",
+                        "Type":  "Runtime",
+                        "LoadingPhase":  "Default"
+                    },
+                    {
+                        "Name":  "UrbanCombat",
+                        "Type":  "Runtime",
+                        "LoadingPhase":  "Default"
+                    },
+                    {
+                        "Name":  "UrbanAI",
+                        "Type":  "Runtime",
+                        "LoadingPhase":  "Default"
+                    },
+                    {
+                        "Name":  "UrbanMission",
+                        "Type":  "Runtime",
+                        "LoadingPhase":  "Default"
+                    },
+                    {
+                        "Name":  "UrbanModes",
+                        "Type":  "Runtime",
+                        "LoadingPhase":  "Default"
+                    },
+                    {
+                        "Name":  "UrbanUI",
+                        "Type":  "Runtime",
+                        "LoadingPhase":  "Default"
+                    },
+                    {
+                        "Name":  "UrbanOnline",
+                        "Type":  "Runtime",
+                        "LoadingPhase":  "Default"
+                    },
+                    {
+                        "Name":  "UrbanFoundationTests",
+                        "Type":  "DeveloperTool",
+                        "LoadingPhase":  "PostEngineInit"
+                    }
+                ]
+}
