@@ -48,5 +48,19 @@
                         "Type":  "DeveloperTool",
                         "LoadingPhase":  "PostEngineInit"
                     }
+                ],
+    "Plugins":  [
+                    {
+                        "Name":  "ModularGameplay",
+                        "Enabled":  true
+                    },
+                    {
+                        "Name":  "GameplayAbilities",
+                        "Enabled":  true
+                    },
+                    {
+                        "Name":  "EnhancedInput",
+                        "Enabled":  true
+                    }
                 ]
 }
