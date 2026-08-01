@@ -44,11 +44,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Build\Scripts\Test-Package
 | Test-station integration automation | Pass | 1 succeeded, 0 failed, 0 not run, 0 in process. |
 | Test-map configuration | Pass | Configuration script completed twice with no Python error or traceback. |
 | Pawn, PawnData, experience, map route, semantic tags, and six station modes | Pass | Asset verification script emitted its PASS marker. |
-| Full CharacterCamera automation suite | Pass | 11 succeeded, 0 failed, 0 not run, 0 in process. |
+| Full CharacterCamera automation suite | Pass | 12 succeeded, 0 failed, 0 not run, 0 in process, including delayed Lyra input binding. |
 | Foundation automation suite | Pass | 2 required smoke tests succeeded. |
 | Repository safeguards | Pass | Privacy, ignore rules, Git LFS, and asset registry gate passed. |
-| Windows Development package | Pass | BuildCookRun completed successfully and archived the Win64 Development package. |
-| Packaged executable smoke | Pass | The packaged executable started and exited cleanly, including an explicit test-map launch. |
+| Windows Development package | Pass | BuildCookRun completed successfully in 5 minutes 29 seconds and archived the Win64 Development package. |
+| Packaged executable smoke | Pass | The fresh packaged executable started and exited cleanly; the explicit character-camera test-map launch also created its Development game window. |
 
 ## Manual Windows acceptance
 
@@ -69,7 +69,7 @@ Do not change a status to Pass unless the behavior was observed in the packaged 
 
 ### Manual test blocker
 
-The packaged game was launched for visual acceptance on July 31, 2026, but the Windows desktop was locked. The game window could not be observed or controlled through the lock screen, so all visual and input checks remain Pending until the user unlocks the session.
+The packaged game was launched again for visual acceptance on August 1, 2026. Windows reported open desktop applications, but the captured game surface still showed the 9:25 lock screen and the message asking that the lock screen be closed before login. The game window therefore could not be observed or controlled honestly; all visual and input checks remain Pending until the Windows session is fully signed in to the desktop.
 
 ## Completion rule
 

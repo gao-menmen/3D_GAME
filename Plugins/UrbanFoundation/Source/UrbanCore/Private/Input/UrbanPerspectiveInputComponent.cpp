@@ -1,8 +1,11 @@
 #include "Input/UrbanPerspectiveInputComponent.h"
 
 #include "Character/UrbanPerspectiveComponent.h"
+#include "Character/LyraHeroComponent.h"
+#include "Components/GameFrameworkComponentManager.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Engine/GameInstance.h"
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -31,6 +34,21 @@ void UUrbanPerspectiveInputComponent::BeginPlay()
     {
         Pawn->ReceiveRestartedDelegate.AddDynamic(this, &ThisClass::HandlePawnRestarted);
         Pawn->ReceiveControllerChangedDelegate.AddDynamic(this, &ThisClass::HandleControllerChanged);
+
+        if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+        {
+            if (UGameFrameworkComponentManager* ComponentManager =
+                UGameInstance::GetSubsystem<UGameFrameworkComponentManager>(GameInstance))
+            {
+                UGameFrameworkComponentManager::FExtensionHandlerDelegate ExtensionDelegate =
+                    UGameFrameworkComponentManager::FExtensionHandlerDelegate::CreateUObject(
+                        this,
+                        &ThisClass::HandlePawnExtension);
+                InputExtensionRequestHandle = ComponentManager->AddExtensionHandler(
+                    APawn::StaticClass(),
+                    ExtensionDelegate);
+            }
+        }
     }
 
     TryBindInput();
@@ -44,6 +62,7 @@ void UUrbanPerspectiveInputComponent::EndPlay(const EEndPlayReason::Type EndPlay
         Pawn->ReceiveControllerChangedDelegate.RemoveDynamic(this, &ThisClass::HandleControllerChanged);
     }
 
+    InputExtensionRequestHandle.Reset();
     RemoveInputBindings();
     PerspectiveComponent = nullptr;
 
@@ -139,6 +158,26 @@ void UUrbanPerspectiveInputComponent::HandleToggleShoulder()
     if (PerspectiveComponent)
     {
         PerspectiveComponent->RequestToggleShoulder();
+    }
+}
+
+void UUrbanPerspectiveInputComponent::HandlePawnExtension(AActor* Actor, FName EventName)
+{
+    if (Actor != GetPawn<APawn>())
+    {
+        return;
+    }
+
+    if (EventName == UGameFrameworkComponentManager::NAME_ExtensionRemoved
+        || EventName == UGameFrameworkComponentManager::NAME_ReceiverRemoved)
+    {
+        RemoveInputBindings();
+        PerspectiveComponent = nullptr;
+    }
+    else if (EventName == UGameFrameworkComponentManager::NAME_ExtensionAdded
+        || EventName == ULyraHeroComponent::NAME_BindInputsNow)
+    {
+        TryBindInput();
     }
 }
 

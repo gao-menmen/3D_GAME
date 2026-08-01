@@ -15,6 +15,7 @@ public class UrbanFoundationTests : ModuleRules
             "GameplayTags",
             "InputCore",
             "LyraGame",
+            "ModularGameplay",
             "UrbanCore",
             "UrbanCombat",
             "UrbanAI",
