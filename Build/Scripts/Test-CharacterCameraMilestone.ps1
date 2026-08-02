@@ -13,8 +13,9 @@ $resolvedRoot = (Resolve-Path -LiteralPath $Root -ErrorAction Stop).Path
 $manifestPath = Join-Path $resolvedRoot 'Build\Manifests\CharacterCameraMilestone.json'
 $pluginPath = Join-Path $resolvedRoot 'Plugins\UrbanFoundation\UrbanFoundation.uplugin'
 $buildRulesPath = Join-Path $resolvedRoot 'Plugins\UrbanFoundation\Source\UrbanCore\UrbanCore.Build.cs'
+$gameConfigPath = Join-Path $resolvedRoot 'Config\DefaultGame.ini'
 
-foreach ($requiredFile in @($manifestPath, $pluginPath, $buildRulesPath)) {
+foreach ($requiredFile in @($manifestPath, $pluginPath, $buildRulesPath, $gameConfigPath)) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
         throw "Required milestone file is missing: $requiredFile"
     }
@@ -50,6 +51,11 @@ $missingDependencies = @($manifest.requiredUrbanCoreDependencies | Where-Object 
 })
 if ($missingDependencies.Count -gt 0) {
     throw "UrbanCore dependencies are missing: $($missingDependencies -join ', ')"
+}
+
+$gameConfig = Get-Content -LiteralPath $gameConfigPath -Raw
+if ($gameConfig -notmatch '(?m)^\+DirectoriesToAlwaysCook=\(Path="/UrbanFoundation/Input"\)\s*$') {
+    throw 'Windows packaging must always cook /UrbanFoundation/Input so runtime soft references resolve.'
 }
 
 $trackedGenerated = @(& git -C $resolvedRoot ls-files | Where-Object {

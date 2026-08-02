@@ -4,11 +4,15 @@
 #include "Character/UrbanPerspectiveComponent.h"
 #include "Character/UrbanPerspectivePresentationComponent.h"
 #include "Character/UrbanViewPolicyComponent.h"
+#include "Cosmetics/LyraPawnComponent_CharacterParts.h"
 #include "Engine/Engine.h"
 #include "Components/BoxComponent.h"
+#include "Components/ChildActorComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "GameFramework/PrimitiveComponentUtilities.h"
 #include "GameFramework/Pawn.h"
 #include "Misc/AutomationTest.h"
 
@@ -192,6 +196,7 @@ bool FUrbanPerspectivePresentationVisibilityTest::RunTest(const FString& Paramet
     UUrbanViewPolicyComponent* PolicyComponent = NewObject<UUrbanViewPolicyComponent>(Pawn);
     UUrbanPerspectiveComponent* PerspectiveComponent = NewObject<UUrbanPerspectiveComponent>(Pawn);
     UUrbanPerspectivePresentationComponent* PresentationComponent = NewObject<UUrbanPerspectivePresentationComponent>(Pawn);
+    ULyraPawnComponent_CharacterParts* CharacterPartsComponent = NewObject<ULyraPawnComponent_CharacterParts>(Pawn);
     USkeletalMeshComponent* WorldBody = NewObject<USkeletalMeshComponent>(Pawn);
     USkeletalMeshComponent* FirstPersonArms = NewObject<USkeletalMeshComponent>(Pawn);
     UStaticMeshComponent* FirstPersonWeapon = NewObject<UStaticMeshComponent>(Pawn);
@@ -209,6 +214,7 @@ bool FUrbanPerspectivePresentationVisibilityTest::RunTest(const FString& Paramet
         PolicyComponent,
         PerspectiveComponent,
         PresentationComponent,
+        CharacterPartsComponent,
         WorldBody,
         FirstPersonArms,
         FirstPersonWeapon,
@@ -218,12 +224,25 @@ bool FUrbanPerspectivePresentationVisibilityTest::RunTest(const FString& Paramet
         AttachComponent(Pawn, Component);
         Component->RegisterComponent();
     }
+    Pawn->SetRootComponent(WorldBody);
+
+    UChildActorComponent* CosmeticPartComponent = NewObject<UChildActorComponent>(Pawn);
+    AttachComponent(Pawn, CosmeticPartComponent);
+    CosmeticPartComponent->SetupAttachment(WorldBody);
+    CosmeticPartComponent->SetChildActorClass(AStaticMeshActor::StaticClass());
+    CosmeticPartComponent->RegisterComponent();
+    AStaticMeshActor* CosmeticActor = CastChecked<AStaticMeshActor>(CosmeticPartComponent->GetChildActor());
+    UStaticMeshComponent* CosmeticBody = CosmeticActor->GetStaticMeshComponent();
 
     World->InitializeActorsForPlay(FURL());
     World->BeginPlay();
     Pawn->DispatchBeginPlay();
 
     TestTrue(TEXT("first person hides the world body from its owner only"), WorldBody->bOwnerNoSee);
+    TestTrue(TEXT("first person hides attached cosmetic body parts from their owner"), CosmeticBody->bOwnerNoSee);
+    TestTrue(
+        TEXT("dynamic cosmetic body parts recognize the pawn as a visibility owner"),
+        UPrimitiveComponentUtilities::GetVisibilityOwners(CosmeticBody).Contains(Pawn));
     TestTrue(TEXT("first-person arms are restricted to the owner"), FirstPersonArms->bOnlyOwnerSee);
     TestFalse(TEXT("first-person arms are visible to the owner in first person"), FirstPersonArms->bOwnerNoSee);
     TestTrue(TEXT("first-person weapon is restricted to the owner"), FirstPersonWeapon->bOnlyOwnerSee);
@@ -232,9 +251,23 @@ bool FUrbanPerspectivePresentationVisibilityTest::RunTest(const FString& Paramet
     TestTrue(TEXT("presentation preserves world-body shadow casting"), WorldBody->CastShadow);
     TestTrue(TEXT("presentation preserves world-body replication"), WorldBody->GetIsReplicated());
 
+    UChildActorComponent* LateCosmeticPartComponent = NewObject<UChildActorComponent>(Pawn);
+    AttachComponent(Pawn, LateCosmeticPartComponent);
+    LateCosmeticPartComponent->SetupAttachment(WorldBody);
+    LateCosmeticPartComponent->SetChildActorClass(AStaticMeshActor::StaticClass());
+    LateCosmeticPartComponent->RegisterComponent();
+    AStaticMeshActor* LateCosmeticActor = CastChecked<AStaticMeshActor>(LateCosmeticPartComponent->GetChildActor());
+    UStaticMeshComponent* LateCosmeticBody = LateCosmeticActor->GetStaticMeshComponent();
+    TestFalse(TEXT("late cosmetic body starts without first-person visibility applied"), LateCosmeticBody->bOwnerNoSee);
+
+    CharacterPartsComponent->OnCharacterPartsChanged.Broadcast(CharacterPartsComponent);
+    TestTrue(TEXT("character-parts change reapplies first-person visibility to late cosmetics"), LateCosmeticBody->bOwnerNoSee);
+
     PerspectiveComponent->ServerRequestPerspective(EUrbanPerspective::ThirdPersonRight);
 
     TestFalse(TEXT("third person restores the world body for the owner"), WorldBody->bOwnerNoSee);
+    TestFalse(TEXT("third person restores attached cosmetic body parts for the owner"), CosmeticBody->bOwnerNoSee);
+    TestFalse(TEXT("third person restores late cosmetic body parts for the owner"), LateCosmeticBody->bOwnerNoSee);
     TestTrue(TEXT("third person hides first-person arms from the owner"), FirstPersonArms->bOwnerNoSee);
     TestTrue(TEXT("third person hides first-person weapon from the owner"), FirstPersonWeapon->bOwnerNoSee);
     TestTrue(TEXT("third-person transition keeps arms owner-only"), FirstPersonArms->bOnlyOwnerSee);

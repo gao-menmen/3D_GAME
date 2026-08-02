@@ -1,8 +1,11 @@
 #include "Character/UrbanPerspectivePresentationComponent.h"
 
 #include "Character/UrbanPerspectiveComponent.h"
+#include "Components/ChildActorComponent.h"
 #include "Components/PrimitiveComponent.h"
+#include "Cosmetics/LyraPawnComponent_CharacterParts.h"
 #include "Engine/World.h"
+#include "GameFramework/PrimitiveComponentUtilities.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(UrbanPerspectivePresentationComponent)
 
@@ -29,9 +32,15 @@ void UUrbanPerspectivePresentationComponent::BeginPlay()
     ResolveComponents();
     if (PerspectiveComponent)
     {
-        PerspectiveComponent->OnPerspectiveChanged.AddDynamic(
+        PerspectiveComponent->OnPerspectiveChanged.AddUniqueDynamic(
             this,
             &ThisClass::HandlePerspectiveChanged);
+    }
+    if (CharacterPartsComponent)
+    {
+        CharacterPartsComponent->OnCharacterPartsChanged.AddUniqueDynamic(
+            this,
+            &ThisClass::HandleCharacterPartsChanged);
     }
 
     RefreshPresentation();
@@ -45,8 +54,15 @@ void UUrbanPerspectivePresentationComponent::EndPlay(const EEndPlayReason::Type 
             this,
             &ThisClass::HandlePerspectiveChanged);
     }
+    if (CharacterPartsComponent)
+    {
+        CharacterPartsComponent->OnCharacterPartsChanged.RemoveDynamic(
+            this,
+            &ThisClass::HandleCharacterPartsChanged);
+    }
 
     PerspectiveComponent = nullptr;
+    CharacterPartsComponent = nullptr;
     WorldBodyComponents.Reset();
     FirstPersonArmsComponents.Reset();
     FirstPersonWeaponComponents.Reset();
@@ -108,30 +124,61 @@ void UUrbanPerspectivePresentationComponent::ResolveComponents()
     {
         PerspectiveComponent = Owner->FindComponentByClass<UUrbanPerspectiveComponent>();
     }
+    if (!CharacterPartsComponent)
+    {
+        CharacterPartsComponent = Owner->FindComponentByClass<ULyraPawnComponent_CharacterParts>();
+    }
 
     WorldBodyComponents.Reset();
     FirstPersonArmsComponents.Reset();
     FirstPersonWeaponComponents.Reset();
 
-    TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents(Owner);
-    for (UPrimitiveComponent* Component : PrimitiveComponents)
+    const auto CollectPrimitiveComponents = [this, Owner](AActor* SourceActor, const bool bTreatUntaggedAsWorldBody)
     {
-        if (!Component)
+        if (!SourceActor)
         {
-            continue;
+            return;
         }
 
-        if (Component->ComponentHasTag(UrbanPerspectivePresentation::WorldBodyTag))
+        TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents(SourceActor);
+        for (UPrimitiveComponent* Component : PrimitiveComponents)
         {
-            WorldBodyComponents.Add(Component);
+            if (!Component)
+            {
+                continue;
+            }
+
+            if (bTreatUntaggedAsWorldBody)
+            {
+                UPrimitiveComponentUtilities::AddVisibilityOwner(Component, Owner);
+            }
+
+            if (Component->ComponentHasTag(UrbanPerspectivePresentation::FirstPersonArmsTag))
+            {
+                FirstPersonArmsComponents.AddUnique(Component);
+                continue;
+            }
+            if (Component->ComponentHasTag(UrbanPerspectivePresentation::FirstPersonWeaponTag))
+            {
+                FirstPersonWeaponComponents.AddUnique(Component);
+                continue;
+            }
+            if (bTreatUntaggedAsWorldBody
+                || Component->ComponentHasTag(UrbanPerspectivePresentation::WorldBodyTag))
+            {
+                WorldBodyComponents.AddUnique(Component);
+            }
         }
-        if (Component->ComponentHasTag(UrbanPerspectivePresentation::FirstPersonArmsTag))
+    };
+
+    CollectPrimitiveComponents(Owner, false);
+
+    TInlineComponentArray<UChildActorComponent*> ChildActorComponents(Owner);
+    for (UChildActorComponent* ChildActorComponent : ChildActorComponents)
+    {
+        if (ChildActorComponent)
         {
-            FirstPersonArmsComponents.Add(Component);
-        }
-        if (Component->ComponentHasTag(UrbanPerspectivePresentation::FirstPersonWeaponTag))
-        {
-            FirstPersonWeaponComponents.Add(Component);
+            CollectPrimitiveComponents(ChildActorComponent->GetChildActor(), true);
         }
     }
 
@@ -186,4 +233,13 @@ void UUrbanPerspectivePresentationComponent::HandlePerspectiveChanged(
     const EUrbanPerspective NewPerspective)
 {
     ApplyPerspective(NewPerspective);
+}
+
+void UUrbanPerspectivePresentationComponent::HandleCharacterPartsChanged(
+    ULyraPawnComponent_CharacterParts* ChangedComponent)
+{
+    if (ChangedComponent == CharacterPartsComponent)
+    {
+        RefreshPresentation();
+    }
 }

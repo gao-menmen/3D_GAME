@@ -36,40 +36,43 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Build\Scripts\Build-Window
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Build\Scripts\Test-PackagedBuild.ps1
 ```
 
-### Current automated evidence — July 31, 2026
+### Current automated evidence - August 2, 2026
 
 | Check | Status | Evidence |
 | --- | --- | --- |
 | UrbanSpearEditor Win64 Development | Pass | Unreal Build Tool reported `Result: Succeeded`. |
-| Test-station integration automation | Pass | 1 succeeded, 0 failed, 0 not run, 0 in process. |
-| Test-map configuration | Pass | Configuration script completed twice with no Python error or traceback. |
-| Pawn, PawnData, experience, map route, semantic tags, and six station modes | Pass | Asset verification script emitted its PASS marker. |
-| Full CharacterCamera automation suite | Pass | 12 succeeded, 0 failed, 0 not run, 0 in process, including delayed Lyra input binding. |
-| Foundation automation suite | Pass | 2 required smoke tests succeeded. |
-| Repository safeguards | Pass | Privacy, ignore rules, Git LFS, and asset registry gate passed. |
-| Windows Development package | Pass | BuildCookRun completed successfully in 5 minutes 29 seconds and archived the Win64 Development package. |
-| Packaged executable smoke | Pass | The fresh packaged executable started and exited cleanly; the explicit character-camera test-map launch also created its Development game window. |
+| First-person dynamic-cosmetic visibility regression | Pass | `UrbanSpear.CharacterCamera.Presentation.OwnerVisibility`: 1 succeeded, 0 failed, 0 warnings. Report: `Saved/Automation/PresentationOwnerVisibility-VisibilityOwner-Green-20260802-2136/index.json`. |
+| Full CharacterCamera automation suite | Pass | 13 succeeded, 0 failed, 0 not run, 0 in process. Report: `Saved/Automation/CharacterCamera-VisibilityOwner-Green-20260802-215955/index.json`. |
+| Character-camera milestone gate | Pass | Manifest paths, dependencies, repository state, and all 13 required automation tests passed. |
+| Foundation automation suite | Pass | 2 required smoke tests succeeded. Report: `Saved/Automation/Foundation/index.json`. |
+| Repository safeguards | Pass | Privacy, ignore rules, Git LFS, and asset registry gate passed in the final verification run. |
+| Windows Development package | Pass | BuildCookRun completed successfully and archived `Artifacts/Windows-Development/UrbanSpear.exe`. |
+| Packaged executable smoke | Pass | The packaged executable started and exited cleanly. Its log contains no missing Urban input assets, `Error:`, fatal error, or assertion; only optional performance-analysis DLL warnings were observed. |
 
 ## Manual Windows acceptance
 
 Do not change a status to Pass unless the behavior was observed in the packaged Windows build at 1280x720 Low.
 
-| Manual check | Status |
-| --- | --- |
-| Character spawns and can walk, turn, and crouch | Pending |
-| `V` switches between first and third person while allowed | Pending |
-| `Q` switches left/right shoulder in third person | Pending |
-| Crouching still permits perspective switching | Pending |
-| Aiming, sprinting, traversal, downed, and death states reject switching | Pending |
-| Camera pulls in against the camera wall | Pending |
-| First-person head/body visibility is correct, including looking down | Pending |
-| Forced-first-person station applies and restores policy | Pending |
-| Death/reset station respawns and restores a legal perspective | Pending |
-| Muzzle-obstruction debug check does not pass through the wall | Pending |
+| Manual check | Status | Observation |
+| --- | --- | --- |
+| Character spawns and the third-person body is visible | Pass | The packaged build spawned the player with the full cosmetic body visible in third person. |
+| Walking and turning remain functional | Pending | Not separately recorded during this acceptance pass. |
+| Crouch enters and exits correctly | Pass | `Ctrl` visibly changed between standing and crouched third-person poses. |
+| `V` switches between first and third person while allowed | Pass | Both directions were observed in the packaged build. |
+| `Q` switches left/right shoulder in third person | Pass | The player body moved from the left side of the frame to the right side after `Q`. |
+| Crouching still permits perspective switching | Pass | While crouched, `V` changed from third person to first person and back without losing the crouched pose. |
+| Aiming, sprinting, traversal, downed, and death states reject switching | Pending | State-policy stations were not completed in this pass. |
+| Camera pulls in against the camera wall | Pending | The dedicated camera-wall check was not completed in this pass. |
+| First-person head/body visibility is correct, including looking down | Pass | Looking down showed the weapon and ground without the player's full-body cosmetic obscuring the right side of the view. |
+| Forced-first-person station applies and restores policy | Pending | The dedicated station was not completed in this pass. |
+| Death/reset station respawns and restores a legal perspective | Pending | Bot-driven respawn occurred, but the dedicated death/reset station was not completed. |
+| Muzzle-obstruction debug check does not pass through the wall | Pending | The dedicated wall check was not completed in this pass. |
 
-### Manual test blocker
+### Manual acceptance notes - August 2, 2026
 
-The packaged game was launched again for visual acceptance on August 1, 2026. Windows reported open desktop applications, but the captured game surface still showed the 9:25 lock screen and the message asking that the lock screen be closed before login. The game window therefore could not be observed or controlled honestly; all visual and input checks remain Pending until the Windows session is fully signed in to the desktop.
+The packaged Windows Development build was tested at 1280x720 Low on `/UrbanFoundation/Maps/L_UrbanCharacterCameraTest`. The previous Windows lock-screen blocker no longer applied. `god` was enabled after respawn to keep bot fire from interrupting the crouch and perspective checks.
+
+The test map still displays Lyra sample-content script/audio warnings, including `B_WeaponInstance_Base`, `W_RespawnTimer`, and the optional `Urban.FirstPersonArms` tag. These warnings did not prevent the recorded character-camera checks, but they remain visible test-content noise and are not marked as resolved by this milestone.
 
 ## Completion rule
 

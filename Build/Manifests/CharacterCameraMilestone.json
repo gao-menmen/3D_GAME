@@ -24,6 +24,7 @@
         "Plugins/UrbanFoundation/Source/UrbanCore/Private/Testing/UrbanCharacterCameraTestStation.cpp",
         "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanCharacterCameraTestStationTests.cpp",
         "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanPerspectiveInputLifecycleTests.cpp",
+        "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanExperienceAssetsTests.cpp",
         "Build/Scripts/Test-CharacterCameraMilestone.ps1"
     ],
     "requiredUrbanCoreDependencies": [
@@ -45,6 +46,7 @@
         "UrbanSpear.CharacterCamera.Components.ViewPolicyAuthority",
         "UrbanSpear.CharacterCamera.Input.Assets",
         "UrbanSpear.CharacterCamera.Input.BindsWhenLyraInputBecomesReady",
+        "UrbanSpear.CharacterCamera.Experience.PrimaryAssetRegistration",
         "UrbanSpear.CharacterCamera.Presentation.MuzzleObstruction",
         "UrbanSpear.CharacterCamera.Presentation.OwnerVisibility",
         "UrbanSpear.CharacterCamera.Rules.PerspectiveDecisions",

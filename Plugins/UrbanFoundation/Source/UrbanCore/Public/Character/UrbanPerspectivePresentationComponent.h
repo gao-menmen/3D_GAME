@@ -6,6 +6,7 @@
 
 class AActor;
 class UPrimitiveComponent;
+class ULyraPawnComponent_CharacterParts;
 class UUrbanPerspectiveComponent;
 namespace EEndPlayReason { enum Type : int; }
 
@@ -53,8 +54,14 @@ private:
     UFUNCTION()
     void HandlePerspectiveChanged(EUrbanPerspective NewPerspective);
 
+    UFUNCTION()
+    void HandleCharacterPartsChanged(ULyraPawnComponent_CharacterParts* ChangedComponent);
+
     UPROPERTY(Transient)
     TObjectPtr<UUrbanPerspectiveComponent> PerspectiveComponent;
+
+    UPROPERTY(Transient)
+    TObjectPtr<ULyraPawnComponent_CharacterParts> CharacterPartsComponent;
 
     UPROPERTY(Transient)
     TArray<TObjectPtr<UPrimitiveComponent>> WorldBodyComponents;
