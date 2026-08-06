@@ -8,6 +8,19 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LyraCameraMode_UrbanPerspective)
 
+FVector UrbanCameraTransition::ResolveFrameLocation(
+    const FVector& TransitionStartLocation,
+    const FVector& DesiredLocation,
+    const float Alpha,
+    TFunctionRef<FVector(const FVector&)> CollisionConstraint)
+{
+    const FVector InterpolatedLocation = FMath::Lerp(
+        TransitionStartLocation,
+        DesiredLocation,
+        FMath::Clamp(Alpha, 0.0f, 1.0f));
+    return CollisionConstraint(InterpolatedLocation);
+}
+
 ULyraCameraMode_UrbanPerspective::ULyraCameraMode_UrbanPerspective()
 {
     CameraSettings.Sanitize();
@@ -159,7 +172,19 @@ void ULyraCameraMode_UrbanPerspective::UpdateView(const float DeltaTime)
             0.0f,
             1.0f);
 
-        View.Location = FMath::Lerp(TransitionStartLocation, DesiredLocation, Alpha);
+        const FVector TransitionPivotLocation = GetPivotLocation();
+        View.Location = UrbanCameraTransition::ResolveFrameLocation(
+            TransitionStartLocation,
+            DesiredLocation,
+            Alpha,
+            [this, TransitionPivotLocation, CollisionRadius = SafeSettings.CollisionRadius](
+                const FVector& InterpolatedLocation)
+            {
+                return ResolveCameraPenetration(
+                    TransitionPivotLocation,
+                    InterpolatedLocation,
+                    CollisionRadius);
+            });
         View.FieldOfView = FMath::Lerp(
             TransitionStartFieldOfView,
             DesiredFieldOfView,

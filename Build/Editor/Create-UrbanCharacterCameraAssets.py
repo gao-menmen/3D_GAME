@@ -107,11 +107,20 @@ def tag_world_mesh(blueprint):
         raise RuntimeError("Unable to find skeletal mesh component on Urban test pawn CDO")
     mesh = meshes[0]
     tags = list(mesh.get_editor_property("component_tags"))
-    tag = unreal.Name("Urban.WorldBody")
-    if tag not in tags:
-        tags.append(tag)
-        mesh.set_editor_property("component_tags", tags)
 
+    # The starter pawn currently exposes one world-body mesh. Keep it owner-visible
+    # as a fallback rather than hiding the player's legs with the entire body.
+    # Future separated head/upper-body meshes must use Urban.FirstPersonBodyHidden;
+    # separated lower-body meshes should use Urban.FirstPersonBodyVisible.
+    for tag_name in ("Urban.WorldBody", "Urban.FirstPersonBodyVisible"):
+        tag = unreal.Name(tag_name)
+        if tag not in tags:
+            tags.append(tag)
+    mesh.set_editor_property("component_tags", tags)
+    unreal.log_warning(
+        "Urban test pawn uses a single first-person-visible world-body fallback; "
+        "tag future camera-occluding head/upper-body meshes Urban.FirstPersonBodyHidden."
+    )
 
 def main():
     pawn_bp = duplicate_or_load(PAWN_SOURCE, PAWN_PATH)

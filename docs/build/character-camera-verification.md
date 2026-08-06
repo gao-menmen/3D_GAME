@@ -11,7 +11,7 @@ This document records automated and manual verification for the Urban Spear firs
 - Perspective switch: `V`
 - Shoulder switch: `Q`
 
-The route contains spawn and movement areas, a crouch obstacle, aiming/sprint/traversal/downed restrictions, a forced-first-person station, a death/reset station, and a wall for camera pull-in and muzzle-obstruction checks.
+The route contains spawn and movement areas, a crouch obstacle, aiming/sprint/traversal/downed restrictions, a forced-first-person station, a death/reset station, and a wall for camera pull-in and muzzle-obstruction checks. Automated coverage also verifies per-frame transition collision, server-side transition throttling, controller-owned perspective restoration across respawn, real ShooterCore ADS/Dash ability-state detection, Lyra input-mapping restoration, and first-person body-part visibility rules.
 
 ## Rebuild and verify the editor content
 
@@ -36,18 +36,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Build\Scripts\Build-Window
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Build\Scripts\Test-PackagedBuild.ps1
 ```
 
-### Current automated evidence - August 2, 2026
+### Current automated evidence - August 6, 2026
 
 | Check | Status | Evidence |
 | --- | --- | --- |
 | UrbanSpearEditor Win64 Development | Pass | Unreal Build Tool reported `Result: Succeeded`. |
 | First-person dynamic-cosmetic visibility regression | Pass | `UrbanSpear.CharacterCamera.Presentation.OwnerVisibility`: 1 succeeded, 0 failed, 0 warnings. Report: `Saved/Automation/PresentationOwnerVisibility-VisibilityOwner-Green-20260802-2136/index.json`. |
-| Full CharacterCamera automation suite | Pass | 13 succeeded, 0 failed, 0 not run, 0 in process. Report: `Saved/Automation/CharacterCamera-VisibilityOwner-Green-20260802-215955/index.json`. |
-| Character-camera milestone gate | Pass | Manifest paths, dependencies, repository state, and all 13 required automation tests passed. |
+| Full CharacterCamera automation suite | Pass | 17 succeeded, 0 failed, 0 not run, 0 in process. Report: `Saved/Automation/CharacterCamera-Final-20260806-143328/index.json`. |
+| Character-camera milestone gate | Pass | The manifest required all 17 character-camera tests and the milestone script completed successfully. |
 | Foundation automation suite | Pass | 2 required smoke tests succeeded. Report: `Saved/Automation/Foundation/index.json`. |
 | Repository safeguards | Pass | Privacy, ignore rules, Git LFS, and asset registry gate passed in the final verification run. |
-| Windows Development package | Pass | BuildCookRun completed successfully and archived `Artifacts/Windows-Development/UrbanSpear.exe`. |
-| Packaged executable smoke | Pass | The packaged executable started and exited cleanly. Its log contains no missing Urban input assets, `Error:`, fatal error, or assertion; only optional performance-analysis DLL warnings were observed. |
+| Windows Development package | Pass | BuildCookRun completed successfully on August 6, 2026 and archived `Artifacts/Windows-Development/UrbanSpear.exe`; provenance completion: `2026-08-06T06:41:25.4347197Z`. |
+| Packaged executable smoke | Pass | `Test-PackagedBuild.ps1` started the current packaged executable and it exited cleanly with code 0 on August 6, 2026. |
 
 ## Manual Windows acceptance
 

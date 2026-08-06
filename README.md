@@ -4,7 +4,7 @@ Project Urban Spear is a Windows 64-bit near-future tactical shooter built with 
 
 ## Current milestone
 
-The current milestone adds the server-authoritative first-person/third-person character-camera foundation, shoulder switching, gameplay-state restrictions, a dedicated test route, 11 character-camera automation tests, and a packaged Windows Development build. Manual packaged-game acceptance is still pending because the Windows session must be unlocked for visual and input checks.
+The current milestone adds the server-authoritative first-person/third-person character-camera foundation, shoulder switching, authoritative transition throttling, controller-owned perspective preferences across respawn, real ShooterCore ADS/Dash restrictions, per-frame camera collision, first-person body visibility rules, Lyra input-mapping recovery, a dedicated test route, 17 character-camera automation tests, and a packaged Windows Development build. Manual packaged-game acceptance is partially recorded; the remaining station-specific checks stay pending in the verification record.
 
 ## Requirements
 

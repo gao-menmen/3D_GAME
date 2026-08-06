@@ -2,9 +2,19 @@
 
 #include "Camera/LyraCameraMode.h"
 #include "Camera/UrbanCameraSettings.h"
+#include "Templates/Function.h"
 #include "LyraCameraMode_UrbanPerspective.generated.h"
 
 class UUrbanPerspectiveComponent;
+
+namespace UrbanCameraTransition
+{
+    URBANCORE_API FVector ResolveFrameLocation(
+        const FVector& TransitionStartLocation,
+        const FVector& DesiredLocation,
+        float Alpha,
+        TFunctionRef<FVector(const FVector&)> CollisionConstraint);
+}
 
 UCLASS(Blueprintable)
 class URBANCORE_API ULyraCameraMode_UrbanPerspective : public ULyraCameraMode

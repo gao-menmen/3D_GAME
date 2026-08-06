@@ -14,6 +14,8 @@ DEFINE_LOG_CATEGORY_STATIC(LogUrbanPerspectivePresentation, Log, All);
 namespace UrbanPerspectivePresentation
 {
     const FName WorldBodyTag(TEXT("Urban.WorldBody"));
+    const FName FirstPersonBodyVisibleTag(TEXT("Urban.FirstPersonBodyVisible"));
+    const FName FirstPersonBodyHiddenTag(TEXT("Urban.FirstPersonBodyHidden"));
     const FName FirstPersonArmsTag(TEXT("Urban.FirstPersonArms"));
     const FName FirstPersonWeaponTag(TEXT("Urban.FirstPersonWeapon"));
 }
@@ -63,7 +65,8 @@ void UUrbanPerspectivePresentationComponent::EndPlay(const EEndPlayReason::Type 
 
     PerspectiveComponent = nullptr;
     CharacterPartsComponent = nullptr;
-    WorldBodyComponents.Reset();
+    FirstPersonVisibleBodyComponents.Reset();
+    FirstPersonHiddenBodyComponents.Reset();
     FirstPersonArmsComponents.Reset();
     FirstPersonWeaponComponents.Reset();
 
@@ -129,11 +132,14 @@ void UUrbanPerspectivePresentationComponent::ResolveComponents()
         CharacterPartsComponent = Owner->FindComponentByClass<ULyraPawnComponent_CharacterParts>();
     }
 
-    WorldBodyComponents.Reset();
+    FirstPersonVisibleBodyComponents.Reset();
+    FirstPersonHiddenBodyComponents.Reset();
     FirstPersonArmsComponents.Reset();
     FirstPersonWeaponComponents.Reset();
 
-    const auto CollectPrimitiveComponents = [this, Owner](AActor* SourceActor, const bool bTreatUntaggedAsWorldBody)
+    const auto CollectPrimitiveComponents = [this, Owner](
+        AActor* SourceActor,
+        const bool bTreatUnclassifiedAsFirstPersonHidden)
     {
         if (!SourceActor)
         {
@@ -148,7 +154,7 @@ void UUrbanPerspectivePresentationComponent::ResolveComponents()
                 continue;
             }
 
-            if (bTreatUntaggedAsWorldBody)
+            if (bTreatUnclassifiedAsFirstPersonHidden)
             {
                 UPrimitiveComponentUtilities::AddVisibilityOwner(Component, Owner);
             }
@@ -163,14 +169,27 @@ void UUrbanPerspectivePresentationComponent::ResolveComponents()
                 FirstPersonWeaponComponents.AddUnique(Component);
                 continue;
             }
-            if (bTreatUntaggedAsWorldBody
-                || Component->ComponentHasTag(UrbanPerspectivePresentation::WorldBodyTag))
+            if (Component->ComponentHasTag(UrbanPerspectivePresentation::FirstPersonBodyHiddenTag))
             {
-                WorldBodyComponents.AddUnique(Component);
+                FirstPersonHiddenBodyComponents.AddUnique(Component);
+                continue;
+            }
+            if (Component->ComponentHasTag(UrbanPerspectivePresentation::FirstPersonBodyVisibleTag))
+            {
+                FirstPersonVisibleBodyComponents.AddUnique(Component);
+                continue;
+            }
+            if (bTreatUnclassifiedAsFirstPersonHidden)
+            {
+                FirstPersonHiddenBodyComponents.AddUnique(Component);
+                continue;
+            }
+            if (Component->ComponentHasTag(UrbanPerspectivePresentation::WorldBodyTag))
+            {
+                FirstPersonVisibleBodyComponents.AddUnique(Component);
             }
         }
     };
-
     CollectPrimitiveComponents(Owner, false);
 
     TInlineComponentArray<UChildActorComponent*> ChildActorComponents(Owner);
@@ -198,14 +217,20 @@ void UUrbanPerspectivePresentationComponent::ApplyPerspective(const EUrbanPerspe
     const bool bFirstPerson = Perspective == EUrbanPerspective::FirstPerson
         || Perspective == EUrbanPerspective::ForcedFirstPerson;
 
-    for (UPrimitiveComponent* WorldBody : WorldBodyComponents)
+    for (UPrimitiveComponent* VisibleBody : FirstPersonVisibleBodyComponents)
     {
-        if (WorldBody)
+        if (VisibleBody)
         {
-            WorldBody->SetOwnerNoSee(bFirstPerson);
+            VisibleBody->SetOwnerNoSee(false);
         }
     }
-
+    for (UPrimitiveComponent* HiddenBody : FirstPersonHiddenBodyComponents)
+    {
+        if (HiddenBody)
+        {
+            HiddenBody->SetOwnerNoSee(bFirstPerson);
+        }
+    }
     for (UPrimitiveComponent* FirstPersonArms : FirstPersonArmsComponents)
     {
         ApplyFirstPersonVisibility(FirstPersonArms, bFirstPerson);

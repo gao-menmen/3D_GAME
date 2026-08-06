@@ -2,6 +2,7 @@
 
 #include "AbilitySystem/LyraAbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
+#include "GameplayAbilitySpec.h"
 #include "NativeGameplayTags.h"
 
 UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_Urban_Status_Aiming, "Status.Aiming");
@@ -9,6 +10,8 @@ UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_Urban_Status_Sprinting, "Status.Sprinting");
 UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_Urban_Status_Traversal, "Status.Traversal");
 UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_Urban_Status_Downed, "Status.Downed");
 UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_Urban_Status_Death, "Status.Death");
+UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_Urban_Ability_ADS, "Ability.Type.Action.ADS");
+UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_Urban_Ability_Dash, "Ability.Type.Action.Dash");
 
 namespace
 {
@@ -19,6 +22,35 @@ namespace
         TAG_Urban_Status_Downed,
         TAG_Urban_Status_Death,
     };
+
+    bool HasActiveAbilityWithTag(
+        const ULyraAbilitySystemComponent* AbilitySystem,
+        const FGameplayTag AbilityTag)
+    {
+        if (!AbilitySystem || !AbilityTag.IsValid())
+        {
+            return false;
+        }
+
+        FGameplayTagContainer RequiredTags;
+        RequiredTags.AddTag(AbilityTag);
+
+        TArray<FGameplayAbilitySpec*> MatchingSpecs;
+        AbilitySystem->GetActivatableGameplayAbilitySpecsByAllMatchingTags(
+            RequiredTags,
+            MatchingSpecs,
+            false);
+
+        for (const FGameplayAbilitySpec* Spec : MatchingSpecs)
+        {
+            if (Spec && Spec->IsActive())
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
 
 UUrbanCharacterStateComponent::UUrbanCharacterStateComponent(const FObjectInitializer& ObjectInitializer)
@@ -73,8 +105,10 @@ FUrbanCharacterViewState UUrbanCharacterStateComponent::BuildViewState(
 
     if (AbilitySystem)
     {
-        Result.bAiming = AbilitySystem->HasMatchingGameplayTag(TAG_Urban_Status_Aiming);
-        Result.bSprinting = AbilitySystem->HasMatchingGameplayTag(TAG_Urban_Status_Sprinting);
+        Result.bAiming = AbilitySystem->HasMatchingGameplayTag(TAG_Urban_Status_Aiming)
+            || HasActiveAbilityWithTag(AbilitySystem, TAG_Urban_Ability_ADS);
+        Result.bSprinting = AbilitySystem->HasMatchingGameplayTag(TAG_Urban_Status_Sprinting)
+            || HasActiveAbilityWithTag(AbilitySystem, TAG_Urban_Ability_Dash);
         Result.bTraversal = AbilitySystem->HasMatchingGameplayTag(TAG_Urban_Status_Traversal);
         Result.bDowned = AbilitySystem->HasMatchingGameplayTag(TAG_Urban_Status_Downed);
         Result.bDead = AbilitySystem->HasMatchingGameplayTag(TAG_Urban_Status_Death);

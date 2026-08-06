@@ -89,6 +89,12 @@ void UUrbanPerspectiveInputComponent::TryBindInput()
 
     if (BoundInputComponent == EnhancedInputComponent && BoundInputSubsystem == InputSubsystem)
     {
+        if (BoundMappingContext && !InputSubsystem->HasMappingContext(BoundMappingContext))
+        {
+            FModifyContextOptions Options;
+            Options.bIgnoreAllPressedKeysUntilRelease = false;
+            InputSubsystem->AddMappingContext(BoundMappingContext, MappingPriority, Options);
+        }
         return;
     }
 

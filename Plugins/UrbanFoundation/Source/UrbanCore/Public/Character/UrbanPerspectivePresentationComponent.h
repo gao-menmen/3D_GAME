@@ -64,7 +64,10 @@ private:
     TObjectPtr<ULyraPawnComponent_CharacterParts> CharacterPartsComponent;
 
     UPROPERTY(Transient)
-    TArray<TObjectPtr<UPrimitiveComponent>> WorldBodyComponents;
+    TArray<TObjectPtr<UPrimitiveComponent>> FirstPersonVisibleBodyComponents;
+
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<UPrimitiveComponent>> FirstPersonHiddenBodyComponents;
 
     UPROPERTY(Transient)
     TArray<TObjectPtr<UPrimitiveComponent>> FirstPersonArmsComponents;

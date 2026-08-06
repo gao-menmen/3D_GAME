@@ -165,6 +165,7 @@ bool FUrbanPerspectiveStateMachineTest::RunTest(const FString& Parameters)
 
     PerspectiveComponent->RequestToggleShoulder();
     TestEqual(TEXT("third person can switch shoulders"), PerspectiveComponent->GetAcceptedPerspective(), EUrbanPerspective::ThirdPersonLeft);
+    World->Tick(LEVELTICK_All, 0.25f);
     PerspectiveComponent->ServerRequestPerspective(EUrbanPerspective::FirstPerson);
     PerspectiveComponent->RequestToggleShoulder();
     TestEqual(TEXT("first person ignores shoulder requests"), PerspectiveComponent->GetAcceptedPerspective(), EUrbanPerspective::FirstPerson);
@@ -198,10 +199,12 @@ bool FUrbanPerspectivePresentationVisibilityTest::RunTest(const FString& Paramet
     UUrbanPerspectivePresentationComponent* PresentationComponent = NewObject<UUrbanPerspectivePresentationComponent>(Pawn);
     ULyraPawnComponent_CharacterParts* CharacterPartsComponent = NewObject<ULyraPawnComponent_CharacterParts>(Pawn);
     USkeletalMeshComponent* WorldBody = NewObject<USkeletalMeshComponent>(Pawn);
+    USkeletalMeshComponent* CameraOccludingUpperBody = NewObject<USkeletalMeshComponent>(Pawn);
     USkeletalMeshComponent* FirstPersonArms = NewObject<USkeletalMeshComponent>(Pawn);
     UStaticMeshComponent* FirstPersonWeapon = NewObject<UStaticMeshComponent>(Pawn);
 
     WorldBody->ComponentTags.Add(FName(TEXT("Urban.WorldBody")));
+    CameraOccludingUpperBody->ComponentTags.Add(FName(TEXT("Urban.FirstPersonBodyHidden")));
     FirstPersonArms->ComponentTags.Add(FName(TEXT("Urban.FirstPersonArms")));
     FirstPersonWeapon->ComponentTags.Add(FName(TEXT("Urban.FirstPersonWeapon")));
     WorldBody->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -216,6 +219,7 @@ bool FUrbanPerspectivePresentationVisibilityTest::RunTest(const FString& Paramet
         PresentationComponent,
         CharacterPartsComponent,
         WorldBody,
+        CameraOccludingUpperBody,
         FirstPersonArms,
         FirstPersonWeapon,
     };
@@ -234,12 +238,23 @@ bool FUrbanPerspectivePresentationVisibilityTest::RunTest(const FString& Paramet
     AStaticMeshActor* CosmeticActor = CastChecked<AStaticMeshActor>(CosmeticPartComponent->GetChildActor());
     UStaticMeshComponent* CosmeticBody = CosmeticActor->GetStaticMeshComponent();
 
+    UChildActorComponent* VisibleBodyPartComponent = NewObject<UChildActorComponent>(Pawn);
+    AttachComponent(Pawn, VisibleBodyPartComponent);
+    VisibleBodyPartComponent->SetupAttachment(WorldBody);
+    VisibleBodyPartComponent->SetChildActorClass(AStaticMeshActor::StaticClass());
+    VisibleBodyPartComponent->RegisterComponent();
+    AStaticMeshActor* VisibleBodyActor = CastChecked<AStaticMeshActor>(VisibleBodyPartComponent->GetChildActor());
+    UStaticMeshComponent* VisibleBodyPart = VisibleBodyActor->GetStaticMeshComponent();
+    VisibleBodyPart->ComponentTags.Add(FName(TEXT("Urban.FirstPersonBodyVisible")));
+
     World->InitializeActorsForPlay(FURL());
     World->BeginPlay();
     Pawn->DispatchBeginPlay();
 
-    TestTrue(TEXT("first person hides the world body from its owner only"), WorldBody->bOwnerNoSee);
-    TestTrue(TEXT("first person hides attached cosmetic body parts from their owner"), CosmeticBody->bOwnerNoSee);
+    TestFalse(TEXT("first person keeps the world body visible to preserve legs and necessary body parts"), WorldBody->bOwnerNoSee);
+    TestFalse(TEXT("first person keeps explicitly visible body parts visible to their owner"), VisibleBodyPart->bOwnerNoSee);
+    TestTrue(TEXT("first person hides explicitly camera-occluding upper-body parts"), CameraOccludingUpperBody->bOwnerNoSee);
+    TestTrue(TEXT("first person hides unclassified full-body cosmetics from their owner"), CosmeticBody->bOwnerNoSee);
     TestTrue(
         TEXT("dynamic cosmetic body parts recognize the pawn as a visibility owner"),
         UPrimitiveComponentUtilities::GetVisibilityOwners(CosmeticBody).Contains(Pawn));
@@ -265,7 +280,9 @@ bool FUrbanPerspectivePresentationVisibilityTest::RunTest(const FString& Paramet
 
     PerspectiveComponent->ServerRequestPerspective(EUrbanPerspective::ThirdPersonRight);
 
-    TestFalse(TEXT("third person restores the world body for the owner"), WorldBody->bOwnerNoSee);
+    TestFalse(TEXT("third person keeps the world body visible for the owner"), WorldBody->bOwnerNoSee);
+    TestFalse(TEXT("third person keeps explicitly visible body parts visible for the owner"), VisibleBodyPart->bOwnerNoSee);
+    TestFalse(TEXT("third person restores explicitly hidden upper-body parts for the owner"), CameraOccludingUpperBody->bOwnerNoSee);
     TestFalse(TEXT("third person restores attached cosmetic body parts for the owner"), CosmeticBody->bOwnerNoSee);
     TestFalse(TEXT("third person restores late cosmetic body parts for the owner"), LateCosmeticBody->bOwnerNoSee);
     TestTrue(TEXT("third person hides first-person arms from the owner"), FirstPersonArms->bOwnerNoSee);
