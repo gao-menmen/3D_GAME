@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "milestone": "combat-foundation",
+  "requiredPaths": [
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Public/Combat/UrbanCombatTypes.h",
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Private/Combat/UrbanCombatTypes.cpp",
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Public/Combat/UrbanCombatDefinitions.h",
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Private/Combat/UrbanCombatDefinitions.cpp",
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Public/Combat/UrbanCombatCatalog.h",
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Private/Combat/UrbanCombatCatalog.cpp",
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Public/Combat/UrbanAmmoComponent.h",
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Private/Combat/UrbanAmmoComponent.cpp",
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Public/Combat/UrbanDamageModel.h",
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Private/Combat/UrbanDamageModel.cpp",
+    "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanCombatCatalogTests.cpp",
+    "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanAmmoStateTests.cpp",
+    "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanAmmoComponentTests.cpp",
+    "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanDamageModelTests.cpp",
+    "docs/build/combat-foundation-verification.md"
+  ],
+  "requiredUrbanCombatDependencies": [
+    "Core",
+    "CoreUObject",
+    "Engine",
+    "NetCore"
+  ],
+  "requiredTests": [
+    "UrbanSpear.Combat.Ammo.ComponentContract",
+    "UrbanSpear.Combat.Ammo.PartialReloadAndCancel",
+    "UrbanSpear.Combat.Ammo.StateLifecycle",
+    "UrbanSpear.Combat.Catalog.FourTacticalItems",
+    "UrbanSpear.Combat.Catalog.ThreeWeaponArchetypes",
+    "UrbanSpear.Combat.Catalog.WeaponSanitize",
+    "UrbanSpear.Combat.Damage.HitRegions",
+    "UrbanSpear.Combat.Damage.LethalClamp",
+    "UrbanSpear.Combat.Damage.TorsoArmor"
+  ]
+}
