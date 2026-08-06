@@ -1,8 +1,8 @@
 using UnrealBuildTool;
 
-public class UrbanCore : ModuleRules
+public class UrbanFoundationEditor : ModuleRules
 {
-    public UrbanCore(ReadOnlyTargetRules Target) : base(Target)
+    public UrbanFoundationEditor(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new[]
@@ -10,15 +10,10 @@ public class UrbanCore : ModuleRules
             "Core",
             "CoreUObject",
             "Engine",
-            "GameplayTags",
-            "ModularGameplay",
-            "LyraGame",
         });
         PrivateDependencyModuleNames.AddRange(new[]
         {
-            "GameplayAbilities",
-            "NetCore",
-            "EnhancedInput",
+            "UnrealEd",
         });
     }
 }

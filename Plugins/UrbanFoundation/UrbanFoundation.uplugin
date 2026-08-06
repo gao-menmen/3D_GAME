@@ -6,11 +6,16 @@
     "Description":  "Shared runtime boundaries and tests.",
     "Category":  "Urban Spear",
     "EnabledByDefault":  true,
-    "CanContainContent":  false,
+    "CanContainContent":  true,
     "Modules":  [
                     {
                         "Name":  "UrbanCore",
                         "Type":  "Runtime",
+                        "LoadingPhase":  "Default"
+                    },
+                    {
+                        "Name":  "UrbanFoundationEditor",
+                        "Type":  "Editor",
                         "LoadingPhase":  "Default"
                     },
                     {
@@ -47,6 +52,20 @@
                         "Name":  "UrbanFoundationTests",
                         "Type":  "DeveloperTool",
                         "LoadingPhase":  "PostEngineInit"
+                    }
+                ],
+    "Plugins":  [
+                    {
+                        "Name":  "ModularGameplay",
+                        "Enabled":  true
+                    },
+                    {
+                        "Name":  "GameplayAbilities",
+                        "Enabled":  true
+                    },
+                    {
+                        "Name":  "EnhancedInput",
+                        "Enabled":  true
                     }
                 ]
 }
