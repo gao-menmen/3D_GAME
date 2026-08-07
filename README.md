@@ -4,7 +4,7 @@ Project Urban Spear is a Windows 64-bit near-future tactical shooter built with 
 
 ## Current milestone
 
-The current milestone adds the server-authoritative first-person/third-person character-camera foundation, shoulder switching, authoritative transition throttling, controller-owned perspective preferences across respawn, real ShooterCore ADS/Dash restrictions, per-frame camera collision, first-person body visibility rules, Lyra input-mapping recovery, a dedicated test route, 17 character-camera automation tests, and a packaged Windows Development build. Manual packaged-game acceptance is partially recorded; the remaining station-specific checks stay pending in the verification record.
+The current development branch starts the combat foundation after the completed character-camera milestone. It adds data-driven defaults for three weapon archetypes and four tactical items, deterministic ammunition and reload rules, a replicated server-authoritative ammo component, hit-region damage, torso armor absorption, and 9 combat automation tests. Playable ShooterCore weapon integration is the next combat increment.
 
 ## Requirements
 
@@ -42,4 +42,16 @@ Run the character-camera gate after the automation suite:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Build\Scripts\Test-CharacterCameraMilestone.ps1
+```
+## Combat foundation milestone
+
+- [Build and verification record](docs/build/combat-foundation-verification.md)
+- Three weapon archetypes: assault rifle, submachine gun, tactical pistol
+- Four tactical items: frag grenade, smoke grenade, medkit, recon drone
+- Rules: server-authoritative ammo mutation, reload lifecycle, hit regions, torso armor
+
+Run the combat foundation gate after the `UrbanSpear.Combat` automation suite:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Build\Scripts\Test-CombatFoundationMilestone.ps1
 ```
