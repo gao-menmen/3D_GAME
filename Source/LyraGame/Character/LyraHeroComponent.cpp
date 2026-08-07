@@ -19,6 +19,7 @@
 #include "Components/GameFrameworkComponentManager.h"
 #include "PlayerMappableInputConfig.h"
 #include "Camera/LyraCameraMode.h"
+#include "Camera/LyraCameraMode_ThirdPerson.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
 #include "InputMappingContext.h"
 
@@ -472,6 +473,18 @@ TSubclassOf<ULyraCameraMode> ULyraHeroComponent::DetermineCameraMode() const
 {
 	if (AbilityCameraMode)
 	{
+		// Urban Spear (first-person-only): the stock ADS ability requests the
+		// third-person ADS camera mode; keep the game first-person by swapping it
+		// for the UrbanCore first-person ADS zoom camera.
+		if (AbilityCameraMode->IsChildOf(ULyraCameraMode_ThirdPerson::StaticClass()))
+		{
+			static const TSoftClassPtr<ULyraCameraMode> FirstPersonADSMode(
+				FSoftObjectPath(TEXT("/Script/UrbanCore.LyraCameraMode_UrbanADS")));
+			if (TSubclassOf<ULyraCameraMode> ADSClass = FirstPersonADSMode.LoadSynchronous())
+			{
+				return ADSClass;
+			}
+		}
 		return AbilityCameraMode;
 	}
 
