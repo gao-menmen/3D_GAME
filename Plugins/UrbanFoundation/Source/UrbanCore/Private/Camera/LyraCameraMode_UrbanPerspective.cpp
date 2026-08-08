@@ -44,12 +44,22 @@ void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetAct
         return;
     }
 
-    UStaticMeshComponent* WeaponMesh = Cast<UStaticMeshComponent>(
-        TargetActor->AddComponentByClass(
-            UStaticMeshComponent::StaticClass(),
-            false,
-            FTransform::Identity,
-            false));
+    const APawn* TargetPawn = Cast<APawn>(TargetActor);
+    ULyraCameraComponent* CameraComponent = TargetPawn
+        ? ULyraCameraComponent::FindCameraComponent(TargetPawn)
+        : nullptr;
+    USceneComponent* AttachParent = CameraComponent
+        ? StaticCast<USceneComponent*>(CameraComponent)
+        : TargetActor->GetRootComponent();
+    if (!AttachParent)
+    {
+        return;
+    }
+
+    UStaticMeshComponent* WeaponMesh = NewObject<UStaticMeshComponent>(
+        TargetActor,
+        UrbanFirstPersonWeapon::ComponentName,
+        RF_Transient);
     if (!WeaponMesh)
     {
         return;
@@ -63,12 +73,13 @@ void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetAct
         WeaponMesh->SetStaticMesh(PistolMesh);
     }
 
-    // First-person hold position: forward-right-down of the pawn root, which
-    // sits at the lower-right of the viewport. The UrbanPerspectivePresentation
-    // component picks this component up via the Urban.FirstPersonWeapon tag and
-    // makes it visible only to the owner in first person.
-    WeaponMesh->SetRelativeLocation(FVector(35.0f, 18.0f, -12.0f));
+    // Standard first-person weapon pose: the pistol hangs in front of the
+    // camera, slightly right and down, so it stays visible in the viewport and
+    // tracks the view. Attached to the camera so it rotates with the look.
+    WeaponMesh->SetupAttachment(AttachParent);
+    WeaponMesh->SetRelativeLocation(FVector(30.0f, 20.0f, -14.0f));
     WeaponMesh->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f));
+    WeaponMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
     WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     WeaponMesh->SetCastShadow(false);
     WeaponMesh->ComponentTags.Add(UrbanFirstPersonWeapon::ComponentTagName);
