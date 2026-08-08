@@ -40,7 +40,9 @@ public:
 	/** Returns the current spread angle (in degrees, diametrical) */
 	float GetCalculatedSpreadAngle() const
 	{
-		return CurrentSpreadAngle;
+		// Urban Spear: weapons are point-and-shoot accurate; the stock
+		// ShooterCore spread curves are demo defaults, not design intent.
+		return 0.0f;
 	}
 
 	float GetCalculatedSpreadAngleMultiplier() const

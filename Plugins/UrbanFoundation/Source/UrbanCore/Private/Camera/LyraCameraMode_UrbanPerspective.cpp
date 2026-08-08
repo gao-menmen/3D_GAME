@@ -1,12 +1,21 @@
 #include "Camera/LyraCameraMode_UrbanPerspective.h"
 
+#include "Camera/LyraCameraComponent.h"
 #include "Character/UrbanPerspectiveComponent.h"
 #include "CollisionQueryParams.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LyraCameraMode_UrbanPerspective)
+
+namespace UrbanFirstPersonWeapon
+{
+    const FName ComponentTagName(TEXT("Urban.FirstPersonWeapon"));
+    const FName ComponentName(TEXT("UrbanFPWeapon"));
+}
 
 FVector UrbanCameraTransition::ResolveFrameLocation(
     const FVector& TransitionStartLocation,
@@ -26,6 +35,46 @@ ULyraCameraMode_UrbanPerspective::ULyraCameraMode_UrbanPerspective()
     CameraSettings.Sanitize();
     BlendTime = CameraSettings.TransitionTime;
     FieldOfView = CameraSettings.ThirdPersonFieldOfView;
+}
+
+void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetActor) const
+{
+    if (!TargetActor || TargetActor->Tags.Contains(UrbanFirstPersonWeapon::ComponentTagName))
+    {
+        return;
+    }
+
+    UStaticMeshComponent* WeaponMesh = Cast<UStaticMeshComponent>(
+        TargetActor->AddComponentByClass(
+            UStaticMeshComponent::StaticClass(),
+            false,
+            FTransform::Identity,
+            false));
+    if (!WeaponMesh)
+    {
+        return;
+    }
+
+    static UStaticMesh* PistolMesh = LoadObject<UStaticMesh>(
+        nullptr,
+        TEXT("/Game/Weapons/Pistol/Mesh/SM_Pistol.SM_Pistol"));
+    if (PistolMesh)
+    {
+        WeaponMesh->SetStaticMesh(PistolMesh);
+    }
+
+    // First-person hold position: forward-right-down of the pawn root, which
+    // sits at the lower-right of the viewport. The UrbanPerspectivePresentation
+    // component picks this component up via the Urban.FirstPersonWeapon tag and
+    // makes it visible only to the owner in first person.
+    WeaponMesh->SetRelativeLocation(FVector(35.0f, 18.0f, -12.0f));
+    WeaponMesh->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f));
+    WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    WeaponMesh->SetCastShadow(false);
+    WeaponMesh->ComponentTags.Add(UrbanFirstPersonWeapon::ComponentTagName);
+    WeaponMesh->RegisterComponent();
+
+    TargetActor->Tags.Add(UrbanFirstPersonWeapon::ComponentTagName);
 }
 
 bool ULyraCameraMode_UrbanPerspective::IsThirdPerson(const EUrbanPerspective Perspective)
@@ -115,6 +164,8 @@ void ULyraCameraMode_UrbanPerspective::UpdateView(const float DeltaTime)
 {
     AActor* TargetActor = GetTargetActor();
     check(TargetActor);
+
+    EnsureFirstPersonWeapon(TargetActor);
 
     UUrbanPerspectiveComponent* PerspectiveComponent =
         TargetActor->FindComponentByClass<UUrbanPerspectiveComponent>();

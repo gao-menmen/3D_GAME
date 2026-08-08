@@ -151,20 +151,24 @@ def prepare_base_map(actor_subsystem):
         ],
         key=lambda actor: actor.get_actor_label(),
     )
-    if not player_starts:
-        raise RuntimeError("Character-camera test map has no LyraPlayerStart")
+    if len(player_starts) < 4:
+        raise RuntimeError("Character-camera test map needs at least 4 LyraPlayerStart")
+
+    # Four respawn points spread across the map corners so the two teams
+    # spawn well apart: west pair (team A) and east pair (team B).
+    for player_start in player_starts[4:]:
+        actor_subsystem.destroy_actor(player_start)
 
     start_positions = [
-        unreal.Vector(-2450.0, -2350.0, 142.0),
-        unreal.Vector(-2450.0, -2150.0, 142.0),
-        unreal.Vector(-2250.0, -2350.0, 142.0),
-        unreal.Vector(-2250.0, -2150.0, 142.0),
-        unreal.Vector(-2650.0, -2350.0, 142.0),
-        unreal.Vector(-2650.0, -2150.0, 142.0),
+        unreal.Vector(-2450.0, -2350.0, 142.0),  # team A - north west
+        unreal.Vector(-2450.0, 2250.0, 142.0),   # team A - south west
+        unreal.Vector(2450.0, -2350.0, 142.0),   # team B - north east
+        unreal.Vector(2450.0, 2250.0, 142.0),    # team B - south east
     ]
-    for index, player_start in enumerate(player_starts):
-        player_start.set_actor_location(start_positions[index % len(start_positions)], False, False)
-        player_start.set_actor_rotation(unreal.Rotator(0.0, 0.0, 0.0), False)
+    for index, player_start in enumerate(player_starts[:4]):
+        player_start.set_actor_location(start_positions[index], False, False)
+        # Face the map centre.
+        player_start.set_actor_rotation(unreal.Rotator(0.0, 135.0 + index * 90.0, 0.0), False)
 
 
 def main():
