@@ -72,7 +72,15 @@ ULyraEquipmentInstance* FLyraEquipmentList::AddEntry(TSubclassOf<ULyraEquipmentD
 	check(EquipmentDefinition != nullptr);
  	check(OwnerComponent);
 	check(OwnerComponent->GetOwner()->HasAuthority());
-	
+
+	// Urban Spear: the owning pawn can opt out of all equipment (weapons) by
+	// carrying the Urban.NoWeapons actor tag. This keeps the stock equipment
+	// pipeline intact while letting a pawn spawn unarmed.
+	if (OwnerComponent->GetOwner()->ActorHasTag(TEXT("Urban.NoWeapons")))
+	{
+		return nullptr;
+	}
+
 	const ULyraEquipmentDefinition* EquipmentCDO = GetDefault<ULyraEquipmentDefinition>(EquipmentDefinition);
 
 	TSubclassOf<ULyraEquipmentInstance> InstanceType = EquipmentCDO->InstanceType;

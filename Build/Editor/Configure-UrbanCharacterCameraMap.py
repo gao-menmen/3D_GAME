@@ -205,24 +205,10 @@ def main():
         ("Urban.Test.OpenMovementLane",),
         "NoCollision",
     )
-    spawn_cube(
-        actor_subsystem,
-        cube_mesh,
-        "Urban_CrouchObstacle",
-        unreal.Vector(-600.0, -2200.0, 215.0),
-        unreal.Vector(1.0, 5.0, 1.0),
-        ("Urban.Test.CrouchObstacle",),
-        "BlockAll",
-    )
-    spawn_cube(
-        actor_subsystem,
-        cube_mesh,
-        "Urban_CameraMuzzleWall",
-        unreal.Vector(2750.0, 0.0, 250.0),
-        unreal.Vector(1.0, 18.0, 4.0),
-        ("Urban.Test.CameraWall", "Urban.Test.MuzzleWall"),
-        "BlockAll",
-    )
+
+    # Note: the crouch obstacle and camera/muzzle wall (BlockAll geometry)
+    # were removed per player request - keep the map flat with only the
+    # ground planes and gameplay test stations.
 
     for station_spec in STATION_SPECS:
         spawn_station(actor_subsystem, *station_spec)
