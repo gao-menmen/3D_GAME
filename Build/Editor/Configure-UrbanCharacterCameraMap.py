@@ -103,6 +103,40 @@ def spawn_station(actor_subsystem, label, mode, location, extent, semantic_tag):
     return actor
 
 
+# Perimeter walls enclosing the whole play area. The walls sit just outside
+# the four respawn corners and the test corridor so players cannot leave the
+# arena. Wall height 400u (4 m), thickness 100u (1 m), length covers the
+# full side (5100u). Scale follows the 1:100 cube convention.
+WALL_HALF = 2550.0
+WALL_HEIGHT = 400.0
+WALL_THICK = 100.0
+
+
+def spawn_perimeter_walls(actor_subsystem, cube_mesh):
+    # North and south walls run along X.
+    for sign in (1.0, -1.0):
+        spawn_cube(
+            actor_subsystem,
+            cube_mesh,
+            "Urban_Wall_North" if sign > 0 else "Urban_Wall_South",
+            unreal.Vector(0.0, sign * WALL_HALF, WALL_HEIGHT / 2),
+            unreal.Vector(2 * WALL_HALF / 100.0, WALL_THICK / 100.0, WALL_HEIGHT / 100.0),
+            "BlockAll",
+            "Urban.Test.Wall",
+        )
+    # East and west walls run along Y.
+    for sign in (1.0, -1.0):
+        spawn_cube(
+            actor_subsystem,
+            cube_mesh,
+            "Urban_Wall_East" if sign > 0 else "Urban_Wall_West",
+            unreal.Vector(sign * WALL_HALF, 0.0, WALL_HEIGHT / 2),
+            unreal.Vector(WALL_THICK / 100.0, 2 * WALL_HALF / 100.0, WALL_HEIGHT / 100.0),
+            "BlockAll",
+            "Urban.Test.Wall",
+        )
+
+
 def prepare_base_map(actor_subsystem):
     actors = list(actor_subsystem.get_all_level_actors())
     base_floor = None
@@ -217,11 +251,13 @@ def main():
     for station_spec in STATION_SPECS:
         spawn_station(actor_subsystem, *station_spec)
 
+    spawn_perimeter_walls(actor_subsystem, cube_mesh)
+
     if not unreal.EditorLoadingAndSavingUtils.save_map(world, MAP_PATH):
         raise RuntimeError("Unable to save configured Urban character-camera map")
 
     unreal.log(
-        "Configured Urban character-camera test map experience, geometry, and six gameplay test stations."
+        "Configured Urban character-camera test map experience, geometry, perimeter walls, and six gameplay test stations."
     )
 
 
