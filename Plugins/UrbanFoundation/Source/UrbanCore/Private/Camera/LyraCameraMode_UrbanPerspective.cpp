@@ -6,6 +6,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Equipment/LyraEquipmentInstance.h"
+#include "Equipment/LyraEquipmentManagerComponent.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 
@@ -37,7 +39,7 @@ ULyraCameraMode_UrbanPerspective::ULyraCameraMode_UrbanPerspective()
     FieldOfView = CameraSettings.ThirdPersonFieldOfView;
 }
 
-void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetActor) const
+void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetActor)
 {
     if (!TargetActor || TargetActor->Tags.Contains(UrbanFirstPersonWeapon::ComponentTagName))
     {
@@ -56,35 +58,67 @@ void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetAct
         return;
     }
 
-    UStaticMeshComponent* WeaponMesh = NewObject<UStaticMeshComponent>(
-        TargetActor,
-        UrbanFirstPersonWeapon::ComponentName,
-        RF_Transient);
-    if (!WeaponMesh)
+    // Reparent the equipped weapon actor (B_Pistol, which carries the Muzzle
+    // socket used by the firing GameplayCue) from the hand socket to the
+    // camera, so the muzzle flash and bullet FX spawn at the first-person
+    // weapon view instead of at the world body. The camera-relative pose
+    // matches the C++ muzzle trace origin (forward 30, right 20, down 6).
+    bool bReparentedWeapon = false;
+    if (ULyraEquipmentManagerComponent* EquipManager =
+            TargetPawn->FindComponentByClass<ULyraEquipmentManagerComponent>())
     {
-        return;
+        ULyraEquipmentInstance* Instance = EquipManager->GetFirstInstanceOfType(
+            ULyraEquipmentInstance::StaticClass());
+        if (Instance)
+        {
+            for (AActor* Spawned : Instance->GetSpawnedActors())
+            {
+                if (!Spawned)
+                {
+                    continue;
+                }
+                USceneComponent* Root = Spawned->GetRootComponent();
+                if (!Root)
+                {
+                    continue;
+                }
+                Root->SetMobility(EComponentMobility::Movable);
+                Root->AttachToComponent(
+                    AttachParent,
+                    FAttachmentTransformRules::KeepRelativeTransform);
+                Root->SetRelativeLocation(FVector(30.0f, 20.0f, -6.0f));
+                Root->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
+                bReparentedWeapon = true;
+            }
+        }
     }
 
-    static UStaticMesh* PistolMesh = LoadObject<UStaticMesh>(
-        nullptr,
-        TEXT("/Game/Weapons/Pistol/Mesh/SM_Pistol.SM_Pistol"));
-    if (PistolMesh)
+    if (!bReparentedWeapon)
     {
-        WeaponMesh->SetStaticMesh(PistolMesh);
+        // Fallback: no equipped weapon actor found, draw a static pistol so the
+        // player still has a visible first-person weapon reference.
+        UStaticMeshComponent* WeaponMesh = NewObject<UStaticMeshComponent>(
+            TargetActor,
+            UrbanFirstPersonWeapon::ComponentName,
+            RF_Transient);
+        if (WeaponMesh)
+        {
+            static UStaticMesh* PistolMesh = LoadObject<UStaticMesh>(
+                nullptr,
+                TEXT("/Game/Weapons/Pistol/Mesh/SM_Pistol.SM_Pistol"));
+            if (PistolMesh)
+            {
+                WeaponMesh->SetStaticMesh(PistolMesh);
+            }
+            WeaponMesh->SetupAttachment(AttachParent);
+            WeaponMesh->SetRelativeLocation(FVector(30.0f, 20.0f, -6.0f));
+            WeaponMesh->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
+            WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+            WeaponMesh->SetCastShadow(false);
+            WeaponMesh->ComponentTags.Add(UrbanFirstPersonWeapon::ComponentTagName);
+            WeaponMesh->RegisterComponent();
+        }
     }
-
-    // Standard first-person weapon pose: the pistol hangs in front of the
-    // camera, slightly right and down, so it stays visible in the viewport and
-    // tracks the view. The SM_Pistol mesh is modelled with its barrel along +Y,
-    // so yaw -90 degrees rotates the barrel to face forward (+X of the camera).
-    WeaponMesh->SetupAttachment(AttachParent);
-    WeaponMesh->SetRelativeLocation(FVector(30.0f, 20.0f, -14.0f));
-    WeaponMesh->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
-    WeaponMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
-    WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    WeaponMesh->SetCastShadow(false);
-    WeaponMesh->ComponentTags.Add(UrbanFirstPersonWeapon::ComponentTagName);
-    WeaponMesh->RegisterComponent();
 
     TargetActor->Tags.Add(UrbanFirstPersonWeapon::ComponentTagName);
 }
