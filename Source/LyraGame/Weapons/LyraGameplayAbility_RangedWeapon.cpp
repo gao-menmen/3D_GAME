@@ -373,13 +373,14 @@ void ULyraGameplayAbility_RangedWeapon::PerformLocalTargeting(OUT TArray<FHitRes
 		InputData.bCanPlayBulletFX = (AvatarPawn->GetNetMode() != NM_DedicatedServer);
 
 		//@TODO: Should do more complicated logic here when the player is close to a wall, etc...
-		const FTransform TargetTransform = GetTargetingTransform(AvatarPawn, ELyraAbilityTargetingSource::CameraTowardsFocus);
+		// Urban Spear: aim from the first-person muzzle TOWARD the crosshair
+		// focus. CameraTowardsFocus would fire parallel to the view line, which
+		// (with a muzzle offset right/down of the camera) lands below-right of
+		// the crosshair. WeaponTowardsFocus points the trace from the muzzle at
+		// the focus point, so distant hits land exactly on the crosshair.
+		const FTransform TargetTransform = GetTargetingTransform(AvatarPawn, ELyraAbilityTargetingSource::WeaponTowardsFocus);
 		InputData.AimDir = TargetTransform.GetUnitAxis(EAxis::X);
-		// Urban Spear: start the trace at the first-person muzzle so bullets
-		// visibly leave the gun, while the direction keeps following the
-		// crosshair (point-and-shoot accuracy). CameraTowardsFocus alone would
-		// project the weapon location onto the view line and erase the offset.
-		InputData.StartTrace = GetWeaponTargetingSourceLocation();
+		InputData.StartTrace = TargetTransform.GetTranslation();
 
 		InputData.EndAim = InputData.StartTrace + InputData.AimDir * WeaponData->GetMaxDamageRange();
 
