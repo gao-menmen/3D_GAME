@@ -196,12 +196,24 @@ FVector ULyraGameplayAbility_RangedWeapon::GetWeaponTargetingSourceLocation() co
 	APawn* const AvatarPawn = Cast<APawn>(GetAvatarActorFromActorInfo());
 	check(AvatarPawn);
 
-	const FVector SourceLoc = AvatarPawn->GetActorLocation();
-	const FQuat SourceRot = AvatarPawn->GetActorQuat();
+	FVector TargetingSourceLocation = AvatarPawn->GetActorLocation();
 
-	FVector TargetingSourceLocation = SourceLoc;
-
-	//@TODO: Add an offset from the weapon instance and adjust based on pawn crouch/aiming/etc...
+	// Urban Spear: fire from the first-person muzzle so bullets visibly leave
+	// the gun. The pistol hangs at (forward 30, right 20, down 14) in camera
+	// space (see EnsureFirstPersonWeapon), so the trace starts there. The aim
+	// direction still follows the crosshair (CameraTowardsFocus), keeping
+	// point-and-shoot accuracy.
+	if (const APlayerController* PC = Cast<APlayerController>(AvatarPawn->GetController()))
+	{
+		FVector CamLoc;
+		FRotator CamRot;
+		PC->GetPlayerViewPoint(CamLoc, CamRot);
+		const FMatrix CamMatrix = FRotationMatrix(CamRot);
+		TargetingSourceLocation = CamLoc
+			+ CamMatrix.GetUnitAxis(EAxis::X) * 30.0f
+			+ CamMatrix.GetUnitAxis(EAxis::Y) * 20.0f
+			+ CamMatrix.GetUnitAxis(EAxis::Z) * -14.0f;
+	}
 
 	return TargetingSourceLocation;
 }
