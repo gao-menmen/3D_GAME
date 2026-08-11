@@ -86,7 +86,7 @@ void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetAct
                 Root->AttachToComponent(
                     AttachParent,
                     FAttachmentTransformRules::KeepRelativeTransform);
-                Root->SetRelativeLocation(FVector(30.0f, 20.0f, -14.0f));
+                Root->SetRelativeLocation(FVector(30.0f, 20.0f, -22.0f));
                 Root->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
                 bReparentedWeapon = true;
             }
@@ -111,7 +111,7 @@ void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetAct
                 WeaponMesh->SetStaticMesh(PistolMesh);
             }
             WeaponMesh->SetupAttachment(AttachParent);
-            WeaponMesh->SetRelativeLocation(FVector(30.0f, 20.0f, -14.0f));
+            WeaponMesh->SetRelativeLocation(FVector(30.0f, 20.0f, -22.0f));
             WeaponMesh->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
             WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
             WeaponMesh->SetCastShadow(false);

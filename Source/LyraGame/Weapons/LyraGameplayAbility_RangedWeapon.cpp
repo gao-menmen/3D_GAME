@@ -212,7 +212,7 @@ FVector ULyraGameplayAbility_RangedWeapon::GetWeaponTargetingSourceLocation() co
 		TargetingSourceLocation = CamLoc
 			+ CamMatrix.GetUnitAxis(EAxis::X) * 30.0f
 			+ CamMatrix.GetUnitAxis(EAxis::Y) * 20.0f
-			+ CamMatrix.GetUnitAxis(EAxis::Z) * -14.0f;
+			+ CamMatrix.GetUnitAxis(EAxis::Z) * -22.0f;
 	}
 
 	return TargetingSourceLocation;
