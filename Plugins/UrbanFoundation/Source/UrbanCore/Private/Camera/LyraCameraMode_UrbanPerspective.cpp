@@ -75,10 +75,11 @@ void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetAct
 
     // Standard first-person weapon pose: the pistol hangs in front of the
     // camera, slightly right and down, so it stays visible in the viewport and
-    // tracks the view. Attached to the camera so it rotates with the look.
+    // tracks the view. The SM_Pistol mesh is modelled with its barrel along +Y,
+    // so yaw -90 degrees rotates the barrel to face forward (+X of the camera).
     WeaponMesh->SetupAttachment(AttachParent);
     WeaponMesh->SetRelativeLocation(FVector(30.0f, 20.0f, -14.0f));
-    WeaponMesh->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f));
+    WeaponMesh->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
     WeaponMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
     WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     WeaponMesh->SetCastShadow(false);
