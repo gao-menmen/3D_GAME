@@ -9,6 +9,7 @@
 #include "GameplayEffectExtension.h"
 #include "Messages/LyraVerbMessage.h"
 #include "GameFramework/GameplayMessageSubsystem.h"
+#include "Teams/LyraTeamSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LyraHealthSet)
 
@@ -127,6 +128,21 @@ void ULyraHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackD
 
 	if (Data.EvaluatedData.Attribute == GetDamageAttribute())
 	{
+		// Friendly fire: ignore damage only when the instigator and the target
+		// are explicitly on the same team. The bot hit-scan already filters its
+		// own shots; this keeps the player's weapon (which goes through Lyra's
+		// stock weapon ability) from hurting teammates too. A no-team source
+		// (e.g. a grenade projectile whose instigator is the thrower's pawn)
+		// is left to the normal damage path.
+		if (const ULyraTeamSubsystem* TeamSubsystem = GetWorld() ? GetWorld()->GetSubsystem<ULyraTeamSubsystem>() : nullptr)
+		{
+			if (Instigator && TeamSubsystem->CompareTeams(Instigator, GetOwningActor()) == ELyraTeamComparison::OnSameTeam)
+			{
+				SetDamage(0.0f);
+				return;
+			}
+		}
+
 		// Send a standardized verb message that other systems can observe
 		if (Data.EvaluatedData.Magnitude > 0.0f)
 		{

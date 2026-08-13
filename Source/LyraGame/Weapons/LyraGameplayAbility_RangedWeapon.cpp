@@ -87,7 +87,28 @@ bool ULyraGameplayAbility_RangedWeapon::CanActivateAbility(const FGameplayAbilit
 
 	if (bResult)
 	{
-		if (GetWeaponInstance() == nullptr)
+		// GetWeaponInstance() routes through GetAssociatedEquipment(), which
+		// reads UGameplayAbility::GetCurrentAbilitySpec(). During the
+		// pre-activation check the engine calls this on the ability CDO,
+		// where GetCurrentAbilitySpec() asserts (instance-scoped function on
+		// the CDO) and returns null, so the check would always fail. Resolve
+		// the equipment from the spec list via the handle instead, exactly as
+		// the item-tag-stack cost does.
+		ULyraRangedWeaponInstance* WeaponInstance = nullptr;
+		if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+		{
+			if (const FGameplayAbilitySpec* Spec =
+					ActorInfo->AbilitySystemComponent->FindAbilitySpecFromHandle(Handle))
+			{
+				WeaponInstance = Cast<ULyraRangedWeaponInstance>(Spec->SourceObject.Get());
+			}
+		}
+		if (WeaponInstance == nullptr)
+		{
+			WeaponInstance = GetWeaponInstance();
+		}
+
+		if (WeaponInstance == nullptr)
 		{
 			UE_LOG(LogLyraAbilitySystem, Error, TEXT("Weapon ability %s cannot be activated because there is no associated ranged weapon (equipment instance=%s but needs to be derived from %s)"),
 				*GetPathName(),

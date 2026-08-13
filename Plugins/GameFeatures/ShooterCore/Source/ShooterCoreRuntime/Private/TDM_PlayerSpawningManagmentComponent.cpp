@@ -35,6 +35,26 @@ AActor* UTDM_PlayerSpawningManagmentComponent::OnChoosePlayerStart(AController* 
 
 	ALyraGameState* GameState = GetGameStateChecked<ALyraGameState>();
 
+	// Split the arena's spawn points by team zone so the two teams start and
+	// respawn on opposite halves of the map instead of interleaving: team 1
+	// owns the right half (X >= 0), team 2 the left half (X < 0). The test
+	// arena's ten LyraPlayerStarts are placed symmetrically, five per half.
+	TArray<ALyraPlayerStart*> TeamZoneStarts;
+	TeamZoneStarts.Reserve(PlayerStarts.Num());
+	for (ALyraPlayerStart* Start : PlayerStarts)
+	{
+		const bool bRightHalf = Start->GetActorLocation().X >= 0.0f;
+		const bool bTeamOwnsRight = (PlayerTeamId == 1);
+		if (bRightHalf == bTeamOwnsRight)
+		{
+			TeamZoneStarts.Add(Start);
+		}
+	}
+	if (TeamZoneStarts.Num() == 0)
+	{
+		TeamZoneStarts = PlayerStarts; // fallback if no zone starts exist
+	}
+
 	ALyraPlayerStart* BestPlayerStart = nullptr;
 	double MaxDistance = 0;
 	ALyraPlayerStart* FallbackPlayerStart = nullptr;
@@ -44,8 +64,11 @@ AActor* UTDM_PlayerSpawningManagmentComponent::OnChoosePlayerStart(AController* 
 	{
 		const int32 TeamId = TeamSubsystem->FindTeamFromObject(PS);
 		
-		// We should have a TeamId by now...
-		if (PS->IsOnlyASpectator() || !ensure(TeamId != INDEX_NONE))
+		// We should have a TeamId by now, but other players can legitimately
+		// still be mid-spawn (the bot/team pipeline assigns teams slightly
+		// after player state creation), so a missing team here is a skip
+		// condition rather than an error.
+		if (PS->IsOnlyASpectator() || TeamId == INDEX_NONE)
 		{
 			continue;
 		}
@@ -53,7 +76,7 @@ AActor* UTDM_PlayerSpawningManagmentComponent::OnChoosePlayerStart(AController* 
 		// If the other player isn't on the same team, lets find the furthest spawn from them.
 		if (TeamId != PlayerTeamId)
 		{
-			for (ALyraPlayerStart* PlayerStart : PlayerStarts)
+			for (ALyraPlayerStart* PlayerStart : TeamZoneStarts)
 			{
 				if (APawn* Pawn = PS->GetPawn())
 				{

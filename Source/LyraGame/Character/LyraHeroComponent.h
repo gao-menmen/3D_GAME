@@ -87,6 +87,15 @@ protected:
 	UE_API void Input_Crouch(const FInputActionValue& InputActionValue);
 	UE_API void Input_AutoRun(const FInputActionValue& InputActionValue);
 
+	/** Shows the pre-round weapon selection screen for locally controlled pawns. */
+	UE_API void TryShowWeaponSelection();
+
+	/** Throws one grenade (limited to a small per-life stock). */
+	UE_API void ThrowGrenade();
+
+	/** Throws one smoke grenade (limited to a small per-life stock). */
+	UE_API void ThrowSmokeGrenade();
+
 	UE_API TSubclassOf<ULyraCameraMode> DetermineCameraMode() const;
 
 protected:
@@ -103,6 +112,12 @@ protected:
 
 	/** True when player input bindings have been applied, will never be true for non - players */
 	bool bReadyToBindInputs;
+
+	/** Remaining grenades this life (thrown directly, not via the stock ability). */
+	int32 GrenadeCount = 2;
+
+	/** Remaining smoke grenades this life. */
+	int32 SmokeGrenadeCount = 2;
 };
 
 #undef UE_API

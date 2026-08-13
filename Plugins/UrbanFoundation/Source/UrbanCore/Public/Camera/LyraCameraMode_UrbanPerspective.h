@@ -31,10 +31,6 @@ protected:
 
 private:
     void EnsureFirstPersonWeapon(AActor* TargetActor);
-    static bool IsThirdPerson(EUrbanPerspective Perspective);
-    void BuildThirdPersonView(
-        const FUrbanCameraSettings& SafeSettings,
-        EUrbanPerspective Perspective);
     void BuildFirstPersonView(const FUrbanCameraSettings& SafeSettings);
     FVector ResolveCameraPenetration(
         const FVector& PivotLocation,

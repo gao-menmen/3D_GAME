@@ -13,12 +13,14 @@ public class UrbanCore : ModuleRules
             "GameplayTags",
             "ModularGameplay",
             "LyraGame",
+            "Niagara",
         });
         PrivateDependencyModuleNames.AddRange(new[]
         {
             "GameplayAbilities",
             "NetCore",
             "EnhancedInput",
+            "AIModule",
         });
     }
 }
