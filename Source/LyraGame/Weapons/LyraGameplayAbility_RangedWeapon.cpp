@@ -87,7 +87,28 @@ bool ULyraGameplayAbility_RangedWeapon::CanActivateAbility(const FGameplayAbilit
 
 	if (bResult)
 	{
-		if (GetWeaponInstance() == nullptr)
+		// GetWeaponInstance() routes through GetAssociatedEquipment(), which
+		// reads UGameplayAbility::GetCurrentAbilitySpec(). During the
+		// pre-activation check the engine calls this on the ability CDO,
+		// where GetCurrentAbilitySpec() asserts (instance-scoped function on
+		// the CDO) and returns null, so the check would always fail. Resolve
+		// the equipment from the spec list via the handle instead, exactly as
+		// the item-tag-stack cost does.
+		ULyraRangedWeaponInstance* WeaponInstance = nullptr;
+		if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+		{
+			if (const FGameplayAbilitySpec* Spec =
+					ActorInfo->AbilitySystemComponent->FindAbilitySpecFromHandle(Handle))
+			{
+				WeaponInstance = Cast<ULyraRangedWeaponInstance>(Spec->SourceObject.Get());
+			}
+		}
+		if (WeaponInstance == nullptr)
+		{
+			WeaponInstance = GetWeaponInstance();
+		}
+
+		if (WeaponInstance == nullptr)
 		{
 			UE_LOG(LogLyraAbilitySystem, Error, TEXT("Weapon ability %s cannot be activated because there is no associated ranged weapon (equipment instance=%s but needs to be derived from %s)"),
 				*GetPathName(),
@@ -196,12 +217,24 @@ FVector ULyraGameplayAbility_RangedWeapon::GetWeaponTargetingSourceLocation() co
 	APawn* const AvatarPawn = Cast<APawn>(GetAvatarActorFromActorInfo());
 	check(AvatarPawn);
 
-	const FVector SourceLoc = AvatarPawn->GetActorLocation();
-	const FQuat SourceRot = AvatarPawn->GetActorQuat();
+	FVector TargetingSourceLocation = AvatarPawn->GetActorLocation();
 
-	FVector TargetingSourceLocation = SourceLoc;
-
-	//@TODO: Add an offset from the weapon instance and adjust based on pawn crouch/aiming/etc...
+	// Urban Spear: fire from the first-person muzzle so bullets visibly leave
+	// the gun. The pistol hangs at (forward 30, right 20, down 14) in camera
+	// space (see EnsureFirstPersonWeapon), so the trace starts there. The aim
+	// direction still follows the crosshair (CameraTowardsFocus), keeping
+	// point-and-shoot accuracy.
+	if (const APlayerController* PC = Cast<APlayerController>(AvatarPawn->GetController()))
+	{
+		FVector CamLoc;
+		FRotator CamRot;
+		PC->GetPlayerViewPoint(CamLoc, CamRot);
+		const FMatrix CamMatrix = FRotationMatrix(CamRot);
+		TargetingSourceLocation = CamLoc
+			+ CamMatrix.GetUnitAxis(EAxis::X) * 30.0f
+			+ CamMatrix.GetUnitAxis(EAxis::Y) * 20.0f
+			+ CamMatrix.GetUnitAxis(EAxis::Z) * -22.0f;
+	}
 
 	return TargetingSourceLocation;
 }
@@ -361,6 +394,12 @@ void ULyraGameplayAbility_RangedWeapon::PerformLocalTargeting(OUT TArray<FHitRes
 		InputData.bCanPlayBulletFX = (AvatarPawn->GetNetMode() != NM_DedicatedServer);
 
 		//@TODO: Should do more complicated logic here when the player is close to a wall, etc...
+		// Urban Spear: use the stock CameraTowardsFocus logic, which projects
+		// the weapon source location onto the view line and fires parallel to
+		// the crosshair. This keeps the trace origin near the visible muzzle
+		// while making distant hits land exactly on the crosshair. (Pure
+		// WeaponTowardsFocus from the offset muzzle converges at the 1024-unit
+		// focus, overshooting to the upper-left on farther targets.)
 		const FTransform TargetTransform = GetTargetingTransform(AvatarPawn, ELyraAbilityTargetingSource::CameraTowardsFocus);
 		InputData.AimDir = TargetTransform.GetUnitAxis(EAxis::X);
 		InputData.StartTrace = TargetTransform.GetTranslation();

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LyraHeroComponent.h"
+#include "Blueprint/UserWidget.h"
 #include "Components/GameFrameworkComponentDelegates.h"
 #include "Logging/MessageLog.h"
 #include "LyraLogChannels.h"
@@ -19,8 +20,14 @@
 #include "Components/GameFrameworkComponentManager.h"
 #include "PlayerMappableInputConfig.h"
 #include "Camera/LyraCameraMode.h"
+#include "Camera/LyraCameraMode_ThirdPerson.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
 #include "InputMappingContext.h"
+#include "UI/WeaponSelection/LyraWeaponSelectionScreen.h"
+#include "Weapons/UrbanSmokeGrenade.h"
+#include "GameFramework/ProjectileMovementComponent.h"
+#include "Engine/World.h"
+#include "InputCoreTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LyraHeroComponent)
 
@@ -181,6 +188,161 @@ void ULyraHeroComponent::HandleChangeInitState(UGameFrameworkComponentManager* M
 			}
 		}
 	}
+	else if (CurrentState == LyraGameplayTags::InitState_DataInitialized && DesiredState == LyraGameplayTags::InitState_GameplayReady)
+	{
+		// The pawn is fully ready (input bound, ability system initialized).
+		// Show the pre-round weapon selection for the local player.
+		TryShowWeaponSelection();
+	}
+}
+
+void ULyraHeroComponent::TryShowWeaponSelection()
+{
+	APawn* Pawn = GetPawn<APawn>();
+	if (!Pawn || !Pawn->IsLocallyControlled())
+	{
+		return;
+	}
+
+	// Only show once per pawn (a respawn creates a new pawn and will show it
+	// again, which doubles as a round start).
+	static const FName SelectionShownTag(TEXT("Urban.WeaponSelectionShown"));
+	if (Pawn->Tags.Contains(SelectionShownTag))
+	{
+		return;
+	}
+	Pawn->Tags.Add(SelectionShownTag);
+
+	ALyraPlayerController* LyraPC = GetController<ALyraPlayerController>();
+	if (!LyraPC || !LyraPC->GetLocalPlayer())
+	{
+		return;
+	}
+
+	// Plain UMG path (no CommonUI layer stack): create the screen, put it on
+	// the viewport and switch to UI-only input so the player cannot move until
+	// a weapon is chosen. The screen restores game input when it closes.
+	ULyraWeaponSelectionScreen* Screen = CreateWidget<ULyraWeaponSelectionScreen>(
+		LyraPC,
+		ULyraWeaponSelectionScreen::StaticClass());
+	if (!Screen)
+	{
+		UE_LOG(LogLyra, Error, TEXT("TryShowWeaponSelection: failed to create weapon selection widget."));
+		return;
+	}
+
+	Screen->AddToViewport(100);
+	LyraPC->SetInputMode(FInputModeUIOnly());
+	LyraPC->SetShowMouseCursor(true);
+}
+
+void ULyraHeroComponent::ThrowGrenade()
+{
+	APawn* Pawn = GetPawn<APawn>();
+	if (!Pawn || !Pawn->IsLocallyControlled())
+	{
+		return;
+	}
+	if (GrenadeCount <= 0)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	// Spawn the stock grenade projectile (B_Grenade), which self-propels,
+	// bounces, and detonates after its fuse timer with radial damage - the
+	// same projectile the stock GA_Grenade ability would have thrown. We throw
+	// it directly here because the ability is no longer granted to the player.
+	static const TCHAR* GrenadeClassPath = TEXT("/ShooterCore/Weapon/Grenade/B_Grenade.B_Grenade_C");
+	UClass* GrenadeClass = LoadObject<UClass>(nullptr, GrenadeClassPath);
+	if (!GrenadeClass)
+	{
+		UE_LOG(LogLyra, Error, TEXT("ThrowGrenade: failed to load B_Grenade class."));
+		return;
+	}
+
+	// Launch point: in front of the pawn at chest height, along the control
+	// rotation (the same "just ahead of player" logic GA_Grenade uses).
+	AController* Controller = Pawn->GetController();
+	const FRotator ThrowRotation = Controller ? Controller->GetControlRotation() : Pawn->GetActorRotation();
+	const FVector SpawnLocation = Pawn->GetActorLocation() + ThrowRotation.Vector() * 60.0f + FVector(0.0f, 0.0f, 60.0f);
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	SpawnParams.Instigator = Pawn;
+	SpawnParams.Owner = Pawn;
+	AActor* Grenade = World->SpawnActor<AActor>(GrenadeClass, SpawnLocation, ThrowRotation, SpawnParams);
+	if (!Grenade)
+	{
+		UE_LOG(LogLyra, Error, TEXT("ThrowGrenade: failed to spawn grenade."));
+		return;
+	}
+
+	// Give it forward velocity. B_Grenade's ProjectileMovementComponent uses
+	// InitialSpeed but has no velocity at spawn; set it so the throw has range.
+	if (UProjectileMovementComponent* ProjMove = Grenade->FindComponentByClass<UProjectileMovementComponent>())
+	{
+		// Aim slightly upward and add forward speed, matching a lobbed throw.
+		const FVector ThrowVelocity = (ThrowRotation.Vector() + FVector(0.0f, 0.0f, 0.35f)).GetSafeNormal() * ProjMove->InitialSpeed;
+		ProjMove->Velocity = ThrowVelocity;
+	}
+
+	--GrenadeCount;
+}
+
+void ULyraHeroComponent::ThrowSmokeGrenade()
+{
+	APawn* Pawn = GetPawn<APawn>();
+	if (!Pawn || !Pawn->IsLocallyControlled())
+	{
+		UE_LOG(LogLyra, Warning, TEXT("ThrowSmokeGrenade: no pawn or not locally controlled."));
+		return;
+	}
+	if (SmokeGrenadeCount <= 0)
+	{
+		UE_LOG(LogLyra, Warning, TEXT("ThrowSmokeGrenade: no smoke grenades left."));
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	// Launch point: in front of the pawn at chest height, along the control
+	// rotation - the same "just ahead of player" logic the frag grenade uses.
+	AController* Controller = Pawn->GetController();
+	const FRotator ThrowRotation = Controller ? Controller->GetControlRotation() : Pawn->GetActorRotation();
+	const FVector SpawnLocation = Pawn->GetActorLocation() + ThrowRotation.Vector() * 60.0f + FVector(0.0f, 0.0f, 60.0f);
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	SpawnParams.Instigator = Pawn;
+	SpawnParams.Owner = Pawn;
+	AUrbanSmokeGrenade* SmokeGrenade = World->SpawnActor<AUrbanSmokeGrenade>(
+		AUrbanSmokeGrenade::StaticClass(), SpawnLocation, ThrowRotation, SpawnParams);
+	if (!SmokeGrenade)
+	{
+		UE_LOG(LogLyra, Error, TEXT("ThrowSmokeGrenade: failed to spawn AUrbanSmokeGrenade."));
+		return;
+	}
+
+	UE_LOG(LogLyra, Log, TEXT("ThrowSmokeGrenade: spawned smoke grenade at %s."), *SpawnLocation.ToString());
+
+	// Give it forward velocity so the throw has range (same lob as frag).
+	if (UProjectileMovementComponent* ProjMove = SmokeGrenade->GetProjectileMovement())
+	{
+		const FVector ThrowVelocity = (ThrowRotation.Vector() + FVector(0.0f, 0.0f, 0.35f)).GetSafeNormal() * ProjMove->InitialSpeed;
+		ProjMove->Velocity = ThrowVelocity;
+	}
+
+	--SmokeGrenadeCount;
 }
 
 void ULyraHeroComponent::OnActorInitStateChanged(const FActorInitStateChangedParams& Params)
@@ -296,6 +458,14 @@ void ULyraHeroComponent::InitializePlayerInput(UInputComponent* PlayerInputCompo
 	{
 		bReadyToBindInputs = true;
 	}
+
+	// Grenade throw: bind the G key directly (traditional input path). The
+	// stock grenade ability is no longer granted to the player, and the
+	// grenade input action lives in an add-on input config whose injection is
+	// not guaranteed here, so we bypass the InputConfig/IMC chain and route
+	// the key straight to ThrowGrenade.
+	PlayerInputComponent->BindKey(EKeys::G, IE_Pressed, this, &ULyraHeroComponent::ThrowGrenade);
+	PlayerInputComponent->BindKey(EKeys::B, IE_Pressed, this, &ULyraHeroComponent::ThrowSmokeGrenade);
  
 	UGameFrameworkComponentManager::SendGameFrameworkComponentExtensionEvent(const_cast<APlayerController*>(PC), NAME_BindInputsNow);
 	UGameFrameworkComponentManager::SendGameFrameworkComponentExtensionEvent(const_cast<APawn*>(Pawn), NAME_BindInputsNow);
@@ -342,6 +512,16 @@ bool ULyraHeroComponent::IsReadyToBindInputs() const
 
 void ULyraHeroComponent::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 {
+	// Restore grenade throwing: the GA_Grenade ability is no longer granted
+	// (the player's pawn data is Empty), so route the grenade input directly
+	// to a projectile spawn instead of the ability system.
+	static const FGameplayTag GrenadeTag = FGameplayTag::RequestGameplayTag(FName("InputTag.Weapon.Grenade"));
+	if (InputTag == GrenadeTag)
+	{
+		ThrowGrenade();
+		return;
+	}
+
 	if (const APawn* Pawn = GetPawn<APawn>())
 	{
 		if (const ULyraPawnExtensionComponent* PawnExtComp = ULyraPawnExtensionComponent::FindPawnExtensionComponent(Pawn))
@@ -472,6 +652,18 @@ TSubclassOf<ULyraCameraMode> ULyraHeroComponent::DetermineCameraMode() const
 {
 	if (AbilityCameraMode)
 	{
+		// Urban Spear (first-person-only): the stock ADS ability requests the
+		// third-person ADS camera mode; keep the game first-person by swapping it
+		// for the UrbanCore first-person ADS zoom camera.
+		if (AbilityCameraMode->IsChildOf(ULyraCameraMode_ThirdPerson::StaticClass()))
+		{
+			static const TSoftClassPtr<ULyraCameraMode> FirstPersonADSMode(
+				FSoftObjectPath(TEXT("/Script/UrbanCore.LyraCameraMode_UrbanADS")));
+			if (TSubclassOf<ULyraCameraMode> ADSClass = FirstPersonADSMode.LoadSynchronous())
+			{
+				return ADSClass;
+			}
+		}
 		return AbilityCameraMode;
 	}
 

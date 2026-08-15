@@ -30,10 +30,7 @@ protected:
     virtual void UpdateView(float DeltaTime) override;
 
 private:
-    static bool IsThirdPerson(EUrbanPerspective Perspective);
-    void BuildThirdPersonView(
-        const FUrbanCameraSettings& SafeSettings,
-        EUrbanPerspective Perspective);
+    void EnsureFirstPersonWeapon(AActor* TargetActor);
     void BuildFirstPersonView(const FUrbanCameraSettings& SafeSettings);
     FVector ResolveCameraPenetration(
         const FVector& PivotLocation,
