@@ -58,6 +58,31 @@ struct URBANAI_API FUrbanEnemyArchetypeTuning
 };
 
 USTRUCT(BlueprintType)
+struct URBANAI_API FUrbanReinforcementBudget
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Urban Spear|AI")
+    int32 TeamOneRemaining = 2;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Urban Spear|AI")
+    int32 TeamTwoRemaining = 2;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Urban Spear|AI")
+    float TeamOneCooldownRemainingSeconds = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Urban Spear|AI")
+    float TeamTwoCooldownRemainingSeconds = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Urban Spear|AI")
+    float RequestCooldownSeconds = 25.0f;
+
+    void Tick(float DeltaTime);
+    bool CanRequest(int32 TeamId, int32 CurrentTeamPopulation, int32 MaxTeamPopulation) const;
+    bool TryConsume(int32 TeamId, int32 CurrentTeamPopulation, int32 MaxTeamPopulation);
+};
+
+USTRUCT(BlueprintType)
 struct URBANAI_API FUrbanAIDecisionContext
 {
     GENERATED_BODY()

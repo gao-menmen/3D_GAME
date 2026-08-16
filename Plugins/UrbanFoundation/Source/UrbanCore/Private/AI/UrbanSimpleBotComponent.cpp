@@ -31,6 +31,7 @@
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "GameModes/LyraGameMode.h"
+#include "GameMode/UrbanBotComponent.h"
 #include "LyraGameplayTags.h"
 #include "Player/LyraPlayerBotController.h"
 #include "Player/LyraPlayerState.h"
@@ -134,9 +135,22 @@ void UUrbanSimpleBotComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		DecisionContext.bHasConfirmedTarget = true;
 		DecisionContext.bHasValidFlankRoute = FlankRoutePoints.Num() > 1
 			&& FlankRoutePointIndex < FlankRoutePoints.Num();
-		DecisionContext.bReinforcementBudgetAvailable = false;
+		ALyraGameMode* GameMode = GetWorld() ? Cast<ALyraGameMode>(GetWorld()->GetAuthGameMode()) : nullptr;
+		UUrbanBotComponent* BotSpawner = GameMode
+			? GameMode->FindComponentByClass<UUrbanBotComponent>()
+			: nullptr;
+		const ALyraPlayerState* PlayerState = BotController->GetPlayerState<ALyraPlayerState>();
+		const int32 TeamId = PlayerState ? PlayerState->GetTeamId() : INDEX_NONE;
+		DecisionContext.bReinforcementBudgetAvailable = !bReinforcementRequestedForCurrentContact
+			&& BotSpawner && BotSpawner->CanRequestReinforcement(TeamId);
 		DecisionContext.TimeInStateSeconds = ConfirmedTargetTime;
-		SetBehaviorState(UUrbanAIDecisionLibrary::ResolveBehaviorState(DecisionContext));
+		const EUrbanAIBehaviorState NewBehaviorState =
+			UUrbanAIDecisionLibrary::ResolveBehaviorState(DecisionContext);
+		SetBehaviorState(NewBehaviorState);
+		if (NewBehaviorState == EUrbanAIBehaviorState::CallReinforcement && BotSpawner)
+		{
+			bReinforcementRequestedForCurrentContact = BotSpawner->TryRequestReinforcement(TeamId);
+		}
 
 		// Preserve a readable reaction window when a target first enters sight.
 		// The bot tracks the target but cannot attack until the role-specific
@@ -155,6 +169,7 @@ void UUrbanSimpleBotComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	{
 		LockedTarget = nullptr;
 		ConfirmedTargetTime = 0.0f;
+		bReinforcementRequestedForCurrentContact = false;
 		ClearFlankRoute();
 		FireReleased();
 		LastKnownTargetTimeRemaining = FMath::Max(LastKnownTargetTimeRemaining - DeltaTime, 0.0f);

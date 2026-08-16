@@ -223,6 +223,7 @@ protected:
 	float LastKnownTargetTimeRemaining = 0.0f;
 	float TimeInBehaviorState = 0.0f;
 	float ConfirmedTargetTime = 0.0f;
+	bool bReinforcementRequestedForCurrentContact = false;
 	float FlankRouteRefreshTime = 0.0f;
 	int32 FlankRoutePointIndex = 0;
 	TArray<FVector> FlankRoutePoints;

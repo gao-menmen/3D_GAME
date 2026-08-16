@@ -1,4 +1,52 @@
 #include "AI/UrbanAITypes.h"
+void FUrbanReinforcementBudget::Tick(const float DeltaTime)
+{
+    const float SafeDelta = FMath::Max(DeltaTime, 0.0f);
+    TeamOneCooldownRemainingSeconds = FMath::Max(TeamOneCooldownRemainingSeconds - SafeDelta, 0.0f);
+    TeamTwoCooldownRemainingSeconds = FMath::Max(TeamTwoCooldownRemainingSeconds - SafeDelta, 0.0f);
+}
+
+bool FUrbanReinforcementBudget::CanRequest(
+    const int32 TeamId, const int32 CurrentTeamPopulation, const int32 MaxTeamPopulation) const
+{
+    if (CurrentTeamPopulation >= FMath::Max(MaxTeamPopulation, 0))
+    {
+        return false;
+    }
+
+    if (TeamId == 1)
+    {
+        return TeamOneRemaining > 0 && TeamOneCooldownRemainingSeconds <= KINDA_SMALL_NUMBER;
+    }
+    if (TeamId == 2)
+    {
+        return TeamTwoRemaining > 0 && TeamTwoCooldownRemainingSeconds <= KINDA_SMALL_NUMBER;
+    }
+    return false;
+}
+
+bool FUrbanReinforcementBudget::TryConsume(
+    const int32 TeamId, const int32 CurrentTeamPopulation, const int32 MaxTeamPopulation)
+{
+    if (!CanRequest(TeamId, CurrentTeamPopulation, MaxTeamPopulation))
+    {
+        return false;
+    }
+
+    const float SafeCooldown = FMath::Max(RequestCooldownSeconds, 0.0f);
+    if (TeamId == 1)
+    {
+        --TeamOneRemaining;
+        TeamOneCooldownRemainingSeconds = SafeCooldown;
+    }
+    else
+    {
+        --TeamTwoRemaining;
+        TeamTwoCooldownRemainingSeconds = SafeCooldown;
+    }
+    return true;
+}
+
 
 void FUrbanEnemyArchetypeTuning::Sanitize()
 {

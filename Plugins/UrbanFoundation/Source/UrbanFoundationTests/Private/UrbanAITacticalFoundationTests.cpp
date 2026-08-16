@@ -165,4 +165,38 @@ bool FUrbanAIFlankCandidateTest::RunTest(const FString& Parameters)
         UUrbanAIDecisionLibrary::BuildFlankCandidate(EnemyLocation, EnemyLocation, 1.0f, 1), EnemyLocation);
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FUrbanAIReinforcementBudgetTest,
+    "UrbanSpear.AI.Reinforcement.BudgetAndCooldown",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FUrbanAIReinforcementBudgetTest::RunTest(const FString& Parameters)
+{
+    (void)Parameters;
+
+    FUrbanReinforcementBudget Budget;
+    Budget.TeamOneRemaining = 2;
+    Budget.TeamTwoRemaining = 1;
+    Budget.RequestCooldownSeconds = 25.0f;
+
+    TestTrue(TEXT("team one initially has an authorized request"), Budget.CanRequest(1, 4, 6));
+    TestTrue(TEXT("first request consumes one unit"), Budget.TryConsume(1, 4, 6));
+    TestEqual(TEXT("budget decrements exactly once"), Budget.TeamOneRemaining, 1);
+    TestFalse(TEXT("team cooldown blocks an immediate repeat"), Budget.CanRequest(1, 5, 6));
+    TestTrue(TEXT("other team has an independent cooldown"), Budget.CanRequest(2, 4, 6));
+
+    Budget.Tick(24.9f);
+    TestFalse(TEXT("partial cooldown remains gated"), Budget.CanRequest(1, 5, 6));
+    Budget.Tick(0.1f);
+    TestTrue(TEXT("elapsed cooldown restores authorization"), Budget.CanRequest(1, 5, 6));
+    TestFalse(TEXT("population cap blocks reinforcement"), Budget.CanRequest(1, 6, 6));
+    TestFalse(TEXT("unknown team cannot consume budget"), Budget.TryConsume(99, 0, 6));
+
+    TestTrue(TEXT("final team two request succeeds"), Budget.TryConsume(2, 4, 6));
+    Budget.Tick(25.0f);
+    TestFalse(TEXT("exhausted budget stays unavailable"), Budget.TryConsume(2, 4, 6));
+    TestEqual(TEXT("budget never becomes negative"), Budget.TeamTwoRemaining, 0);
+    return true;
+}
+
 #endif

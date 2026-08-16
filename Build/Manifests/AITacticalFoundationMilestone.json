@@ -17,6 +17,7 @@
     "UrbanSpear.AI.Decision.PerceptionDrivenStates",
     "UrbanSpear.AI.Decision.TacticalGates",
     "UrbanSpear.AI.Decision.ReactionGate",
-    "UrbanSpear.AI.Navigation.FlankCandidate"
+    "UrbanSpear.AI.Navigation.FlankCandidate",
+    "UrbanSpear.AI.Reinforcement.BudgetAndCooldown"
   ]
 }
