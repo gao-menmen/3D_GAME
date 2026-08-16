@@ -141,4 +141,28 @@ bool FUrbanAIReactionGateTest::RunTest(const FString& Parameters)
         Marksman.AimSpreadDegrees < Assault.AimSpreadDegrees);
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FUrbanAIFlankCandidateTest,
+    "UrbanSpear.AI.Navigation.FlankCandidate",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FUrbanAIFlankCandidateTest::RunTest(const FString& Parameters)
+{
+    (void)Parameters;
+
+    const FVector PawnLocation(0.0f, 0.0f, 0.0f);
+    const FVector EnemyLocation(1000.0f, 0.0f, 0.0f);
+    const FVector RightCandidate = UUrbanAIDecisionLibrary::BuildFlankCandidate(
+        PawnLocation, EnemyLocation, 0.85f, 1);
+    const FVector LeftCandidate = UUrbanAIDecisionLibrary::BuildFlankCandidate(
+        PawnLocation, EnemyLocation, 0.85f, -1);
+
+    TestTrue(TEXT("candidate stays behind the enemy front line"), RightCandidate.X < EnemyLocation.X);
+    TestTrue(TEXT("positive side produces a lateral candidate"), RightCandidate.Y > 500.0f);
+    TestTrue(TEXT("opposite sides mirror lateral distance"),
+        FMath::IsNearlyEqual(RightCandidate.Y, -LeftCandidate.Y));
+    TestEqual(TEXT("coincident locations remain stable"),
+        UUrbanAIDecisionLibrary::BuildFlankCandidate(EnemyLocation, EnemyLocation, 1.0f, 1), EnemyLocation);
+    return true;
+}
 #endif

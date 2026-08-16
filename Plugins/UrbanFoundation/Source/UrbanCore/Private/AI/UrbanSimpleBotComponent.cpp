@@ -19,6 +19,8 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "NavigationPath.h"
+#include "NavigationSystem.h"
 #include "Equipment/LyraEquipmentDefinition.h"
 #include "Equipment/LyraEquipmentInstance.h"
 #include "Equipment/LyraEquipmentManagerComponent.h"
@@ -111,17 +113,29 @@ void UUrbanSimpleBotComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	TimeInBehaviorState += DeltaTime;
 	if (FindVisibleEnemy(EnemyDirection, Enemy))
 	{
+		if (LockedTarget != Enemy)
+		{
+			ClearFlankRoute();
+		}
 		ConfirmedTargetTime = LockedTarget == Enemy ? ConfirmedTargetTime + DeltaTime : 0.0f;
 		LockedTarget = Enemy;
 		LastKnownTargetLocation = Enemy->GetActorLocation();
 		LastKnownTargetTimeRemaining = 6.0f;
 
+		FlankRouteRefreshTime = FMath::Max(FlankRouteRefreshTime - DeltaTime, 0.0f);
+		if (ArchetypeTuning.FlankPreference >= 0.6f && FlankRouteRefreshTime <= 0.0f
+			&& ConfirmedTargetTime >= 4.5f)
+		{
+			RefreshValidatedFlankRoute(GetBotController() ? GetBotController()->GetPawn() : nullptr, Enemy);
+			FlankRouteRefreshTime = 2.0f;
+		}
+
 		FUrbanAIDecisionContext DecisionContext;
 		DecisionContext.bHasConfirmedTarget = true;
-		// Flanking remains locked until a navigation-backed route is supplied.
-		DecisionContext.bHasValidFlankRoute = false;
+		DecisionContext.bHasValidFlankRoute = FlankRoutePoints.Num() > 1
+			&& FlankRoutePointIndex < FlankRoutePoints.Num();
 		DecisionContext.bReinforcementBudgetAvailable = false;
-		DecisionContext.TimeInStateSeconds = TimeInBehaviorState;
+		DecisionContext.TimeInStateSeconds = ConfirmedTargetTime;
 		SetBehaviorState(UUrbanAIDecisionLibrary::ResolveBehaviorState(DecisionContext));
 
 		// Preserve a readable reaction window when a target first enters sight.
@@ -141,6 +155,7 @@ void UUrbanSimpleBotComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	{
 		LockedTarget = nullptr;
 		ConfirmedTargetTime = 0.0f;
+		ClearFlankRoute();
 		FireReleased();
 		LastKnownTargetTimeRemaining = FMath::Max(LastKnownTargetTimeRemaining - DeltaTime, 0.0f);
 		if (LastKnownTargetTimeRemaining > 0.0f)
@@ -168,6 +183,69 @@ bool UUrbanSimpleBotComponent::HasCompletedTargetReaction() const
 {
 	return UUrbanAIDecisionLibrary::HasCompletedReaction(
 		ConfirmedTargetTime, ArchetypeTuning.ReactionTimeSeconds);
+}
+
+bool UUrbanSimpleBotComponent::RefreshValidatedFlankRoute(const APawn* Pawn, const AActor* Enemy)
+{
+	ClearFlankRoute();
+	if (!Pawn || !Enemy || !GetWorld())
+	{
+		return false;
+	}
+
+	const FVector ToEnemy = (Enemy->GetActorLocation() - Pawn->GetActorLocation()).GetSafeNormal2D();
+	if (ToEnemy.IsNearlyZero())
+	{
+		return false;
+	}
+
+	const FVector Candidate = UUrbanAIDecisionLibrary::BuildFlankCandidate(
+		Pawn->GetActorLocation(), Enemy->GetActorLocation(), ArchetypeTuning.FlankPreference, StrafeDir);
+
+	UNavigationPath* Path = UNavigationSystemV1::FindPathToLocationSynchronously(
+		GetWorld(), Pawn->GetActorLocation(), Candidate, const_cast<APawn*>(Pawn));
+	if (!Path || !Path->IsValid() || Path->IsPartial() || Path->PathPoints.Num() < 2)
+	{
+		return false;
+	}
+
+	FlankRoutePoints = Path->PathPoints;
+	FlankRoutePointIndex = 1;
+	return true;
+}
+
+void UUrbanSimpleBotComponent::FollowFlankRoute(const FVector& EnemyDirection)
+{
+	APawn* Pawn = GetBotController() ? GetBotController()->GetPawn() : nullptr;
+	if (!Pawn || !FlankRoutePoints.IsValidIndex(FlankRoutePointIndex))
+	{
+		ClearFlankRoute();
+		return;
+	}
+
+	while (FlankRoutePoints.IsValidIndex(FlankRoutePointIndex)
+		&& FVector::DistSquared2D(Pawn->GetActorLocation(), FlankRoutePoints[FlankRoutePointIndex])
+			<= FMath::Square(140.0f))
+	{
+		++FlankRoutePointIndex;
+	}
+
+	if (!FlankRoutePoints.IsValidIndex(FlankRoutePointIndex))
+	{
+		ClearFlankRoute();
+		return;
+	}
+
+	const FVector RouteDirection =
+		(FlankRoutePoints[FlankRoutePointIndex] - Pawn->GetActorLocation()).GetSafeNormal2D();
+	MoveInDirection(RouteDirection, 0.9f);
+	TurnAndShoot(EnemyDirection);
+}
+
+void UUrbanSimpleBotComponent::ClearFlankRoute()
+{
+	FlankRoutePoints.Reset();
+	FlankRoutePointIndex = 0;
 }
 
 void UUrbanSimpleBotComponent::ActOnLastKnownTarget(float DeltaTime)
@@ -1088,6 +1166,12 @@ void UUrbanSimpleBotComponent::DecideAndAct(float DeltaTime, const FVector& Enem
 	{
 		FleeFrom(Enemy->GetActorLocation());
 		TurnAndShoot(EnemyDirection);
+		return;
+	}
+
+	if (BehaviorState == EUrbanAIBehaviorState::Flank && FlankRoutePoints.Num() > 1)
+	{
+		FollowFlankRoute(EnemyDirection);
 		return;
 	}
 

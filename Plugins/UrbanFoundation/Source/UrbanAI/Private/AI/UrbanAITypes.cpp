@@ -85,3 +85,21 @@ bool UUrbanAIDecisionLibrary::HasCompletedReaction(const float ConfirmedTargetSe
 {
     return FMath::Max(ConfirmedTargetSeconds, 0.0f) >= FMath::Max(ReactionTimeSeconds, 0.0f);
 }
+FVector UUrbanAIDecisionLibrary::BuildFlankCandidate(
+    const FVector& PawnLocation,
+    const FVector& EnemyLocation,
+    const float FlankPreference,
+    const int32 SideSign)
+{
+    const FVector ToEnemy = (EnemyLocation - PawnLocation).GetSafeNormal2D();
+    if (ToEnemy.IsNearlyZero())
+    {
+        return EnemyLocation;
+    }
+
+    const FVector Side = FVector::CrossProduct(FVector::UpVector, ToEnemy).GetSafeNormal2D();
+    const float SafePreference = FMath::Clamp(FlankPreference, 0.0f, 1.0f);
+    const float SafeSideSign = SideSign >= 0 ? 1.0f : -1.0f;
+    const float LateralDistance = FMath::Lerp(500.0f, 1100.0f, SafePreference);
+    return EnemyLocation - ToEnemy * 650.0f + Side * SafeSideSign * LateralDistance;
+}

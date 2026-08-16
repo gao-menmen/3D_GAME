@@ -22,6 +22,7 @@ public class UrbanCore : ModuleRules
             "NetCore",
             "EnhancedInput",
             "AIModule",
+            "NavigationSystem",
         });
     }
 }

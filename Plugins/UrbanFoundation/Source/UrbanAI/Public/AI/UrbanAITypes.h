@@ -97,4 +97,9 @@ public:
     /** Prevents newly acquired targets from being engaged before the role-specific reaction delay. */
     UFUNCTION(BlueprintPure, Category = "Urban Spear|AI")
     static bool HasCompletedReaction(float ConfirmedTargetSeconds, float ReactionTimeSeconds);
+
+    /** Generates a deterministic lateral candidate; NavigationSystem must still validate the route. */
+    UFUNCTION(BlueprintPure, Category = "Urban Spear|AI")
+    static FVector BuildFlankCandidate(const FVector& PawnLocation, const FVector& EnemyLocation,
+        float FlankPreference, int32 SideSign);
 };

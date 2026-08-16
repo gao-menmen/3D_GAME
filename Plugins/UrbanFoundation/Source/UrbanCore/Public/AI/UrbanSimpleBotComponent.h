@@ -223,10 +223,18 @@ protected:
 	float LastKnownTargetTimeRemaining = 0.0f;
 	float TimeInBehaviorState = 0.0f;
 	float ConfirmedTargetTime = 0.0f;
+	float FlankRouteRefreshTime = 0.0f;
+	int32 FlankRoutePointIndex = 0;
+	TArray<FVector> FlankRoutePoints;
 
 	void SetBehaviorState(EUrbanAIBehaviorState NewState);
 
 	bool HasCompletedTargetReaction() const;
+
+	// Produces a side-route only when NavigationSystem confirms a complete path.
+	bool RefreshValidatedFlankRoute(const APawn* Pawn, const AActor* Enemy);
+	void FollowFlankRoute(const FVector& EnemyDirection);
+	void ClearFlankRoute();
 
 	float FireTimer = 0.0f;
 	float PatrolTimer = 0.0f;
