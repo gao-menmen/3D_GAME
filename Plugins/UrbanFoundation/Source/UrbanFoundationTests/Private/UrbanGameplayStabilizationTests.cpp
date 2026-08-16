@@ -100,6 +100,8 @@ bool FUrbanWeaponSelectionContractTest::RunTest(const FString& Parameters)
 
 	const ULyraWeaponSelectionScreen* Screen = GetDefault<ULyraWeaponSelectionScreen>();
 	TestNotNull(TEXT("weapon selection has a class default object"), Screen);
+	TestEqual(TEXT("selection state uses a stable controller tag"),
+		ULyraWeaponSelectionScreen::GetSelectionShownTag(), FName(TEXT("Urban.WeaponSelectionShown")));
 	if (!Screen)
 	{
 		return false;

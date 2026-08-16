@@ -48,7 +48,7 @@ namespace UrbanWeaponSelection
 	// A solid-color brush that needs no texture asset. DrawAs::Box renders a
 	// flat rectangle using only TintColor, so nothing has to be loaded at
 	// runtime (the stock WhiteTexture asset is not cooked into packaged builds
-	// and previously produced a "鏈壘鍒癘bject" warning plus an invisible
+	// and previously produced a missing-object warning plus an invisible
 	// backdrop).
 	FSlateBrush MakeSolidBrush(const FLinearColor& Color)
 	{
@@ -130,6 +130,11 @@ int32 ULyraWeaponSelectionScreen::ResolveSelectionIndex(const FKey& Key)
 		return 4;
 	}
 	return INDEX_NONE;
+}
+
+FName ULyraWeaponSelectionScreen::GetSelectionShownTag()
+{
+	return FName(TEXT("Urban.WeaponSelectionShown"));
 }
 
 int32 ULyraWeaponSelectionScreen::ResolveWeaponPrice(const int32 SelectionIndex)
@@ -484,7 +489,6 @@ void ULyraWeaponSelectionScreen::SelectWeapon(TSoftClassPtr<ULyraInventoryItemDe
 		return;
 	}
 
-	bSelectionMade = true;
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(SelectionTimerHandle);
@@ -503,9 +507,19 @@ void ULyraWeaponSelectionScreen::SelectWeapon(TSoftClassPtr<ULyraInventoryItemDe
 	// it. The pistol stays in slot 0, so the player can switch back with the
 	// number keys or the mouse wheel.
 	const int32 SlotIndex = QuickBar->GetNextFreeItemSlot();
+	if (SlotIndex == INDEX_NONE)
+	{
+		UE_LOG(LogLyra, Warning, TEXT("WeaponSelection: quick bar is full; cannot equip %s."), *LoadedClass->GetName());
+		Inventory->RemoveItemInstance(NewItem);
+		Economy->AddKillReward(Price);
+		RestoreGameInput();
+		return;
+	}
+
 	QuickBar->AddItemToSlot(SlotIndex, NewItem);
 	QuickBar->SetActiveSlotIndex(SlotIndex);
 
+	bSelectionMade = true;
 	UE_LOG(LogLyra, Log, TEXT("Weapon selection: equipped %s in slot %d for $%d; funds=$%d"),
 		*LoadedClass->GetName(), SlotIndex, Price, Economy->GetFunds());
 

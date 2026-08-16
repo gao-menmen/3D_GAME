@@ -43,6 +43,9 @@ public:
 	/** Tactical buy prices: sidearm / rifle / shotgun / armor / helmet. */
 	static int32 ResolveWeaponPrice(int32 SelectionIndex);
 
+	/** Controller tag used to keep one buy screen alive across pawn respawns. */
+	static FName GetSelectionShownTag();
+
 	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetPistolItemDefinition() const { return PistolItemDefinition; }
 	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetRifleItemDefinition() const { return RifleItemDefinition; }
 	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetShotgunItemDefinition() const { return ShotgunItemDefinition; }
