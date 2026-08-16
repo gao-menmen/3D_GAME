@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "milestone": "ai-tactical-foundation",
+  "requiredPaths": [
+    "Plugins/UrbanFoundation/Source/UrbanAI/Public/AI/UrbanAITypes.h",
+    "Plugins/UrbanFoundation/Source/UrbanAI/Private/AI/UrbanAITypes.cpp",
+    "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanAITacticalFoundationTests.cpp"
+  ],
+  "requiredUrbanAIDependencies": [
+    "Core",
+    "CoreUObject",
+    "Engine"
+  ],
+  "requiredTests": [
+    "UrbanSpear.AI.Archetypes.FourEnemyRoles",
+    "UrbanSpear.AI.Archetypes.Sanitize",
+    "UrbanSpear.AI.Decision.PerceptionDrivenStates",
+    "UrbanSpear.AI.Decision.TacticalGates"
+  ]
+}
