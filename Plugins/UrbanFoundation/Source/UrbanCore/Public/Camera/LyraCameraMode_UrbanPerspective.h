@@ -5,6 +5,7 @@
 #include "Templates/Function.h"
 #include "LyraCameraMode_UrbanPerspective.generated.h"
 
+class USceneComponent;
 class UUrbanPerspectiveComponent;
 
 namespace UrbanCameraTransition
@@ -26,11 +27,25 @@ public:
 
     const FUrbanCameraSettings& GetCameraSettings() const { return CameraSettings; }
 
+    /** Returns whether a perspective requires the collision-aware third-person camera path. */
+    static bool IsThirdPerson(EUrbanPerspective Perspective);
+
 protected:
     virtual void UpdateView(float DeltaTime) override;
 
 private:
+    struct FWeaponAttachmentState
+    {
+        TWeakObjectPtr<USceneComponent> Parent;
+        FName SocketName = NAME_None;
+        FTransform RelativeTransform = FTransform::Identity;
+    };
+
     void EnsureFirstPersonWeapon(AActor* TargetActor);
+    void RestoreWeaponAttachments();
+    void BuildThirdPersonView(
+        const FUrbanCameraSettings& SafeSettings,
+        EUrbanPerspective Perspective);
     void BuildFirstPersonView(const FUrbanCameraSettings& SafeSettings);
     FVector ResolveCameraPenetration(
         const FVector& PivotLocation,
@@ -41,6 +56,7 @@ private:
     UPROPERTY(EditDefaultsOnly, Category="Urban|Camera")
     FUrbanCameraSettings CameraSettings;
 
+    TMap<TWeakObjectPtr<AActor>, FWeaponAttachmentState> WeaponAttachmentStates;
     TWeakObjectPtr<AActor> LastTargetActor;
     FVector TransitionStartLocation = FVector::ZeroVector;
     FVector LastOutputLocation = FVector::ZeroVector;
