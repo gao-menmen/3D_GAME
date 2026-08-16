@@ -133,6 +133,10 @@ struct URBANCOMBAT_API FUrbanDamageProfile
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Damage")
     float TorsoArmorAbsorption = 0.65f;
 
+    /** Fraction of scaled head damage absorbed when the target has a helmet. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Damage")
+    float HeadArmorAbsorption = 0.5f;
+
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Damage")
     float ArmorDurabilityDamageScale = 1.0f;
 
@@ -153,6 +157,10 @@ struct URBANCOMBAT_API FUrbanDamageRequest
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Damage")
     bool bCanDamageArmor = true;
+
+    /** Head armor only applies when a helmet is equipped. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Damage")
+    bool bHasHelmet = false;
 };
 
 USTRUCT(BlueprintType)

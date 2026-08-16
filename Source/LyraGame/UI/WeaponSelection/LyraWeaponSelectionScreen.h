@@ -37,10 +37,10 @@ public:
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 	//~End of UUserWidget interface
 
-	/** Returns the supported selection index (0-2), or INDEX_NONE for other keys. */
+	/** Returns the supported selection index (0-4), or INDEX_NONE for other keys. */
 	static int32 ResolveSelectionIndex(const FKey& Key);
 
-	/** Tactical buy prices: sidearm / rifle / shotgun. */
+	/** Tactical buy prices: sidearm / rifle / shotgun / armor / helmet. */
 	static int32 ResolveWeaponPrice(int32 SelectionIndex);
 
 	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetPistolItemDefinition() const { return PistolItemDefinition; }
@@ -58,9 +58,17 @@ protected:
 	void OnShotgunClicked();
 
 	UFUNCTION()
+	void OnArmorClicked();
+
+	UFUNCTION()
+	void OnHelmetClicked();
+
+	UFUNCTION()
 	void OnSelectionTimeout();
 
 	void SelectWeapon(TSoftClassPtr<ULyraInventoryItemDefinition> ItemDefClass, int32 Price);
+	void PurchaseArmor(bool bHelmet);
+	class ULyraTacticalEconomyComponent* FindOrAddEconomyComponent() const;
 	void BuildMenu();
 	UButton* MakeButton(const FText& Label, const FText& Description);
 	void RestoreGameInput();

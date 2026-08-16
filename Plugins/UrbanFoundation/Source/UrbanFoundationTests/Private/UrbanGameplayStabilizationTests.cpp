@@ -116,11 +116,15 @@ bool FUrbanWeaponSelectionContractTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("1 selects pistol"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::One), 0);
 	TestEqual(TEXT("numpad 2 selects rifle"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::NumPadTwo), 1);
 	TestEqual(TEXT("3 selects shotgun"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Three), 2);
+	TestEqual(TEXT("4 selects body armor"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Four), 3);
+	TestEqual(TEXT("numpad 5 selects helmet"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::NumPadFive), 4);
 	TestEqual(TEXT("enter accepts pistol default"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Enter), 0);
 	TestEqual(TEXT("unsupported key is rejected"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Escape), INDEX_NONE);
 	TestEqual(TEXT("sidearm is the free fallback"), ULyraWeaponSelectionScreen::ResolveWeaponPrice(0), 0);
 	TestEqual(TEXT("rifle has a premium tactical price"), ULyraWeaponSelectionScreen::ResolveWeaponPrice(1), 2700);
 	TestEqual(TEXT("shotgun has a close-range price"), ULyraWeaponSelectionScreen::ResolveWeaponPrice(2), 1800);
+	TestEqual(TEXT("body armor has an equipment price"), ULyraWeaponSelectionScreen::ResolveWeaponPrice(3), 650);
+	TestEqual(TEXT("helmet has an equipment price"), ULyraWeaponSelectionScreen::ResolveWeaponPrice(4), 350);
 	TestEqual(TEXT("invalid selection has no price"), ULyraWeaponSelectionScreen::ResolveWeaponPrice(99), INDEX_NONE);
 	return true;
 }
@@ -182,11 +186,18 @@ bool FUrbanTacticalEconomyTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("unaffordable purchase is rejected"), Economy->TryPurchase(1800));
 	TestEqual(TEXT("failed purchase preserves funds"), Economy->GetFunds(), 1300);
 	TestFalse(TEXT("negative price is rejected"), Economy->TryPurchase(-1));
+	TestFalse(TEXT("helmet requires body armor"), Economy->TryPurchaseHelmet());
+	TestTrue(TEXT("body armor purchase succeeds"), Economy->TryPurchaseArmor());
+	TestEqual(TEXT("armor starts at full durability"), Economy->GetArmor(), 100.0f, 0.001f);
+	TestFalse(TEXT("duplicate armor purchase is rejected"), Economy->TryPurchaseArmor());
+	TestTrue(TEXT("helmet purchase succeeds after armor"), Economy->TryPurchaseHelmet());
+	TestTrue(TEXT("helmet ownership is retained"), Economy->HasHelmet());
+	TestFalse(TEXT("duplicate helmet purchase is rejected"), Economy->TryPurchaseHelmet());
 
 	Economy->AddKillReward();
-	TestEqual(TEXT("kill grants default reward"), Economy->GetFunds(), 1600);
+	TestEqual(TEXT("kill grants default reward"), Economy->GetFunds(), 600);
 	Economy->AddRoundAward(false, 2);
-	TestEqual(TEXT("loss streak increases recovery award"), Economy->GetFunds(), 4000);
+	TestEqual(TEXT("loss streak increases recovery award"), Economy->GetFunds(), 3000);
 	TestEqual(TEXT("round win award is stable"), ULyraTacticalEconomyComponent::ResolveRoundAward(true, 4), 3250);
 	TestEqual(TEXT("loss award is capped"), ULyraTacticalEconomyComponent::ResolveRoundAward(false, 99), 3400);
 	TestEqual(TEXT("wallet maximum is capped"), ULyraTacticalEconomyComponent::ClampFunds(50000), 16000);

@@ -34,9 +34,13 @@ namespace UrbanWeaponSelection
 	const FText PistolText = NSLOCTEXT("UrbanWeaponSelection", "Pistol", "[1] SIDEARM  |  $0");
 	const FText RifleText = NSLOCTEXT("UrbanWeaponSelection", "Rifle", "[2] RIFLE  |  $2700");
 	const FText ShotgunText = NSLOCTEXT("UrbanWeaponSelection", "Shotgun", "[3] SHOTGUN  |  $1800");
+	const FText ArmorText = NSLOCTEXT("UrbanWeaponSelection", "Armor", "[4] BODY ARMOR  |  $650");
+	const FText HelmetText = NSLOCTEXT("UrbanWeaponSelection", "Helmet", "[5] HELMET  |  $350");
 	const FText PistolDesc = NSLOCTEXT("UrbanWeaponSelection", "PistolDesc", "Free fallback / balanced at close range");
 	const FText RifleDesc = NSLOCTEXT("UrbanWeaponSelection", "RifleDesc", "Automatic / reliable at medium range");
 	const FText ShotgunDesc = NSLOCTEXT("UrbanWeaponSelection", "ShotgunDesc", "High impact / close range");
+	const FText ArmorDesc = NSLOCTEXT("UrbanWeaponSelection", "ArmorDesc", "100 durability / reduces torso damage");
+	const FText HelmetDesc = NSLOCTEXT("UrbanWeaponSelection", "HelmetDesc", "Requires armor / reduces headshot damage");
 	const TCHAR* PistolPath = TEXT("/ShooterCore/Weapons/Pistol/ID_Pistol.ID_Pistol_C");
 	const TCHAR* RiflePath = TEXT("/ShooterCore/Weapons/Rifle/ID_Rifle.ID_Rifle_C");
 	const TCHAR* ShotgunPath = TEXT("/ShooterCore/Weapons/Shotgun/ID_Shotgun.ID_Shotgun_C");
@@ -44,7 +48,7 @@ namespace UrbanWeaponSelection
 	// A solid-color brush that needs no texture asset. DrawAs::Box renders a
 	// flat rectangle using only TintColor, so nothing has to be loaded at
 	// runtime (the stock WhiteTexture asset is not cooked into packaged builds
-	// and previously produced a "未找到Object" warning plus an invisible
+	// and previously produced a "鏈壘鍒癘bject" warning plus an invisible
 	// backdrop).
 	FSlateBrush MakeSolidBrush(const FLinearColor& Color)
 	{
@@ -59,7 +63,7 @@ namespace UrbanWeaponSelection
 ULyraWeaponSelectionScreen::ULyraWeaponSelectionScreen(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	// Focusable so SetKeyboardFocus works and the 1/2/3 hotkeys reach
+	// Focusable so SetKeyboardFocus works and the 1-5 hotkeys reach
 	// NativeOnKeyDown while the widget is up.
 	SetIsFocusable(true);
 
@@ -85,7 +89,7 @@ void ULyraWeaponSelectionScreen::NativeConstruct()
 
 	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: NativeConstruct."));
 
-	// Grab keyboard focus so the 1/2/3 hotkeys below are reachable even if
+	// Grab keyboard focus so the 1-5 hotkeys below are reachable even if
 	// mouse clicking is unavailable for any reason.
 	SetKeyboardFocus();
 
@@ -117,6 +121,14 @@ int32 ULyraWeaponSelectionScreen::ResolveSelectionIndex(const FKey& Key)
 	{
 		return 2;
 	}
+	if (Key == EKeys::Four || Key == EKeys::NumPadFour)
+	{
+		return 3;
+	}
+	if (Key == EKeys::Five || Key == EKeys::NumPadFive)
+	{
+		return 4;
+	}
 	return INDEX_NONE;
 }
 
@@ -127,6 +139,8 @@ int32 ULyraWeaponSelectionScreen::ResolveWeaponPrice(const int32 SelectionIndex)
 	case 0: return 0;
 	case 1: return 2700;
 	case 2: return 1800;
+	case 3: return 650;
+	case 4: return 350;
 	default: return INDEX_NONE;
 	}
 }
@@ -143,6 +157,12 @@ FReply ULyraWeaponSelectionScreen::NativeOnKeyDown(const FGeometry& InGeometry, 
 		return FReply::Handled();
 	case 2:
 		OnShotgunClicked();
+		return FReply::Handled();
+	case 3:
+		OnArmorClicked();
+		return FReply::Handled();
+	case 4:
+		OnHelmetClicked();
 		return FReply::Handled();
 	default:
 		return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
@@ -220,6 +240,8 @@ void ULyraWeaponSelectionScreen::BuildMenu()
 	UButton* PistolButton = MakeButton(UrbanWeaponSelection::PistolText, UrbanWeaponSelection::PistolDesc);
 	UButton* RifleButton = MakeButton(UrbanWeaponSelection::RifleText, UrbanWeaponSelection::RifleDesc);
 	UButton* ShotgunButton = MakeButton(UrbanWeaponSelection::ShotgunText, UrbanWeaponSelection::ShotgunDesc);
+	UButton* ArmorButton = MakeButton(UrbanWeaponSelection::ArmorText, UrbanWeaponSelection::ArmorDesc);
+	UButton* HelmetButton = MakeButton(UrbanWeaponSelection::HelmetText, UrbanWeaponSelection::HelmetDesc);
 	if (PistolButton)
 	{
 		PistolButton->OnClicked.AddDynamic(this, &ThisClass::OnPistolClicked);
@@ -244,13 +266,29 @@ void ULyraWeaponSelectionScreen::BuildMenu()
 			BtnSlot->SetPadding(FMargin(0.0f, 12.0f));
 		}
 	}
+	if (ArmorButton)
+	{
+		ArmorButton->OnClicked.AddDynamic(this, &ThisClass::OnArmorClicked);
+		if (UVerticalBoxSlot* BtnSlot = MenuBox->AddChildToVerticalBox(ArmorButton))
+		{
+			BtnSlot->SetPadding(FMargin(0.0f, 8.0f));
+		}
+	}
+	if (HelmetButton)
+	{
+		HelmetButton->OnClicked.AddDynamic(this, &ThisClass::OnHelmetClicked);
+		if (UVerticalBoxSlot* BtnSlot = MenuBox->AddChildToVerticalBox(HelmetButton))
+		{
+			BtnSlot->SetPadding(FMargin(0.0f, 8.0f));
+		}
+	}
 
 	// Hotkey hint so the player knows keyboard input works even if the mouse
 	// cannot click the buttons for any reason.
 	UTextBlock* Hint = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("Hint"));
 	if (Hint)
 	{
-		Hint->SetText(FText::FromString(TEXT("Press 1/2/3 or click to buy  |  15s buy time")));
+		Hint->SetText(FText::FromString(TEXT("Press 1-5 or click to buy  |  armor purchases keep this menu open")));
 		Hint->SetFont(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 20));
 		Hint->SetColorAndOpacity(FSlateColor(FLinearColor(0.7f, 0.7f, 0.75f)));
 		Hint->SetJustification(ETextJustify::Center);
@@ -261,7 +299,7 @@ void ULyraWeaponSelectionScreen::BuildMenu()
 	}
 
 	WidgetTree->RootWidget = Canvas;
-	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: menu built (title + 3 buttons + hint)."));
+	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: menu built (three weapons + armor + helmet + hint)."));
 }
 
 UButton* ULyraWeaponSelectionScreen::MakeButton(const FText& Label, const FText& Description)
@@ -337,6 +375,54 @@ void ULyraWeaponSelectionScreen::OnShotgunClicked()
 	SelectWeapon(ShotgunItemDefinition, ResolveWeaponPrice(2));
 }
 
+void ULyraWeaponSelectionScreen::OnArmorClicked()
+{
+	PurchaseArmor(false);
+}
+
+void ULyraWeaponSelectionScreen::OnHelmetClicked()
+{
+	PurchaseArmor(true);
+}
+
+ULyraTacticalEconomyComponent* ULyraWeaponSelectionScreen::FindOrAddEconomyComponent() const
+{
+	APlayerController* PC = GetOwningPlayer();
+	if (!PC)
+	{
+		return nullptr;
+	}
+
+	ULyraTacticalEconomyComponent* Economy = PC->FindComponentByClass<ULyraTacticalEconomyComponent>();
+	if (!Economy)
+	{
+		Economy = NewObject<ULyraTacticalEconomyComponent>(PC, TEXT("TacticalEconomy"));
+		Economy->RegisterComponent();
+	}
+	return Economy;
+}
+
+void ULyraWeaponSelectionScreen::PurchaseArmor(const bool bHelmet)
+{
+	ULyraTacticalEconomyComponent* Economy = FindOrAddEconomyComponent();
+	const int32 Price = ResolveWeaponPrice(bHelmet ? 4 : 3);
+	const bool bPurchased = Economy && (bHelmet
+		? Economy->TryPurchaseHelmet(Price)
+		: Economy->TryPurchaseArmor(Price));
+
+	UE_LOG(LogLyra, Log,
+		TEXT("WeaponSelection: %s purchase %s; armor=%.0f helmet=%d funds=%d"),
+		bHelmet ? TEXT("helmet") : TEXT("armor"),
+		bPurchased ? TEXT("succeeded") : TEXT("denied"),
+		Economy ? Economy->GetArmor() : 0.0f,
+		Economy ? Economy->HasHelmet() : false,
+		Economy ? Economy->GetFunds() : 0);
+
+	// Equipment purchases are additive. Keep the menu focused so the player
+	// can still buy the companion protection item and choose a weapon.
+	SetKeyboardFocus();
+}
+
 void ULyraWeaponSelectionScreen::OnSelectionTimeout()
 {
 	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: 15s timeout, falling back to pistol."));
@@ -370,12 +456,7 @@ void ULyraWeaponSelectionScreen::SelectWeapon(TSoftClassPtr<ULyraInventoryItemDe
 		RestoreGameInput();
 		return;
 	}
-	ULyraTacticalEconomyComponent* Economy = PC->FindComponentByClass<ULyraTacticalEconomyComponent>();
-	if (!Economy)
-	{
-		Economy = NewObject<ULyraTacticalEconomyComponent>(PC, TEXT("TacticalEconomy"));
-		Economy->RegisterComponent();
-	}
+	ULyraTacticalEconomyComponent* Economy = FindOrAddEconomyComponent();
 	if (!Economy || !Economy->TryPurchase(Price))
 	{
 		UE_LOG(LogLyra, Warning, TEXT("WeaponSelection: purchase denied, price=%d funds=%d."),

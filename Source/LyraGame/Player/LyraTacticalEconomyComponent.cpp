@@ -23,6 +23,26 @@ bool ULyraTacticalEconomyComponent::TryPurchase(const int32 Price)
 	return true;
 }
 
+bool ULyraTacticalEconomyComponent::TryPurchaseArmor(const int32 Price)
+{
+	if (Armor >= 100.0f || !TryPurchase(Price))
+	{
+		return false;
+	}
+	Armor = 100.0f;
+	return true;
+}
+
+bool ULyraTacticalEconomyComponent::TryPurchaseHelmet(const int32 Price)
+{
+	if (bHasHelmet || Armor <= 0.0f || !TryPurchase(Price))
+	{
+		return false;
+	}
+	bHasHelmet = true;
+	return true;
+}
+
 void ULyraTacticalEconomyComponent::AddKillReward(const int32 Reward)
 {
 	Funds = ClampFunds(Funds + FMath::Max(Reward, 0));

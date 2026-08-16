@@ -32,6 +32,7 @@
     "UrbanSpear.Combat.Catalog.ThreeWeaponArchetypes",
     "UrbanSpear.Combat.Catalog.WeaponSanitize",
     "UrbanSpear.Combat.Damage.HitRegions",
+    "UrbanSpear.Combat.Damage.HelmetArmor",
     "UrbanSpear.Combat.Damage.LethalClamp",
     "UrbanSpear.Combat.Damage.TorsoArmor"
   ]
