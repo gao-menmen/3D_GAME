@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Components/ActorComponent.h"
+#include "AI/UrbanAITypes.h"
 
 #include "UrbanSimpleBotComponent.generated.h"
 
@@ -120,6 +121,12 @@ public:
 	// Sets the bot's weapon type and its derived combat stats.
 	void SetWeaponType(EBotWeaponType InType);
 
+	// Applies a tactical enemy role and its runtime combat tuning.
+	void SetEnemyArchetype(EUrbanEnemyArchetype InArchetype);
+	EUrbanEnemyArchetype GetEnemyArchetype() const { return EnemyArchetype; }
+	EUrbanAIBehaviorState GetBehaviorState() const { return BehaviorState; }
+	const FUrbanEnemyArchetypeTuning& GetArchetypeTuning() const { return ArchetypeTuning; }
+
 	// Returns the complete validated combat profile for the selected weapon.
 	FUrbanBotWeaponProfile GetWeaponProfile() const;
 
@@ -183,6 +190,9 @@ protected:
 	// Preferred engagement distance for the currently held weapon (units).
 	float GetPreferredEngageDistance() const;
 
+	// Investigates or searches the last location supported by perception.
+	void ActOnLastKnownTarget(float DeltaTime);
+
 	// 6. Patrol module: wander when nothing is visible.
 	void Patrol(float DeltaTime);
 
@@ -203,6 +213,17 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<AActor> LockedTarget;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Urban|Bot|Tactics")
+	EUrbanEnemyArchetype EnemyArchetype = EUrbanEnemyArchetype::Rifleman;
+
+	FUrbanEnemyArchetypeTuning ArchetypeTuning;
+	EUrbanAIBehaviorState BehaviorState = EUrbanAIBehaviorState::PatrolOrGuard;
+	FVector LastKnownTargetLocation = FVector::ZeroVector;
+	float LastKnownTargetTimeRemaining = 0.0f;
+	float TimeInBehaviorState = 0.0f;
+
+	void SetBehaviorState(EUrbanAIBehaviorState NewState);
 
 	float FireTimer = 0.0f;
 	float PatrolTimer = 0.0f;

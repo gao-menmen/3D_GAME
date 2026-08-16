@@ -301,15 +301,15 @@ void UUrbanBotComponent::SpawnBots()
 			SimpleAI->RegisterComponent();
 		}
 
-		// Give each bot a weapon: pistols, rifles and shotguns mix across
-		// both teams, with different damage/fire-rate/range per weapon.
-		static const EBotWeaponType WeaponCycle[] = {
-			EBotWeaponType::Pistol,
-			EBotWeaponType::Rifle,
-			EBotWeaponType::Shotgun,
-			EBotWeaponType::Rifle
+		// Rotate through the four approved tactical roles. Each role applies
+		// its own range, reaction, cover/flank preference and weapon loadout.
+		static const EUrbanEnemyArchetype ArchetypeCycle[] = {
+			EUrbanEnemyArchetype::Rifleman,
+			EUrbanEnemyArchetype::Assault,
+			EUrbanEnemyArchetype::Marksman,
+			EUrbanEnemyArchetype::Drone
 		};
-		SimpleAI->SetWeaponType(WeaponCycle[Count % (sizeof(WeaponCycle) / sizeof(WeaponCycle[0]))]);
+		SimpleAI->SetEnemyArchetype(ArchetypeCycle[Count % UE_ARRAY_COUNT(ArchetypeCycle)]);
 
 		// Create the player state and assign the team BEFORE RestartPlayer.
 		// The TDM spawn-point selector resolves a controller's team through

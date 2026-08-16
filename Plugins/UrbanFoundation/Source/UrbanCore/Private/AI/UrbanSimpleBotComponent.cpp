@@ -49,6 +49,7 @@ UUrbanSimpleBotComponent::UUrbanSimpleBotComponent(const FObjectInitializer& Obj
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = true;
+	SetEnemyArchetype(EnemyArchetype);
 }
 
 void UUrbanSimpleBotComponent::BeginPlay()
@@ -107,19 +108,75 @@ void UUrbanSimpleBotComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	// Vision first: is there a visible enemy ahead?
 	FVector EnemyDirection;
 	AActor* Enemy = nullptr;
+	TimeInBehaviorState += DeltaTime;
 	if (FindVisibleEnemy(EnemyDirection, Enemy))
 	{
 		LockedTarget = Enemy;
+		LastKnownTargetLocation = Enemy->GetActorLocation();
+		LastKnownTargetTimeRemaining = 6.0f;
+
+		FUrbanAIDecisionContext DecisionContext;
+		DecisionContext.bHasConfirmedTarget = true;
+		// Flanking remains locked until a navigation-backed route is supplied.
+		DecisionContext.bHasValidFlankRoute = false;
+		DecisionContext.bReinforcementBudgetAvailable = false;
+		DecisionContext.TimeInStateSeconds = TimeInBehaviorState;
+		SetBehaviorState(UUrbanAIDecisionLibrary::ResolveBehaviorState(DecisionContext));
 		DecideAndAct(DeltaTime, EnemyDirection, Enemy);
 	}
 	else
 	{
 		LockedTarget = nullptr;
-		FireReleased();                 // stop shooting when nothing to shoot
-		Patrol(DeltaTime);              // 6. wander when no enemy around
+		FireReleased();
+		LastKnownTargetTimeRemaining = FMath::Max(LastKnownTargetTimeRemaining - DeltaTime, 0.0f);
+		if (LastKnownTargetTimeRemaining > 0.0f)
+		{
+			ActOnLastKnownTarget(DeltaTime);
+		}
+		else
+		{
+			SetBehaviorState(EUrbanAIBehaviorState::PatrolOrGuard);
+			Patrol(DeltaTime);
+		}
 	}
 }
 
+void UUrbanSimpleBotComponent::SetBehaviorState(const EUrbanAIBehaviorState NewState)
+{
+	if (BehaviorState != NewState)
+	{
+		BehaviorState = NewState;
+		TimeInBehaviorState = 0.0f;
+	}
+}
+
+void UUrbanSimpleBotComponent::ActOnLastKnownTarget(float DeltaTime)
+{
+	APawn* Pawn = GetBotController() ? GetBotController()->GetPawn() : nullptr;
+	if (!Pawn)
+	{
+		return;
+	}
+
+	const FVector ToLastKnown = LastKnownTargetLocation - Pawn->GetActorLocation();
+	FUrbanAIDecisionContext DecisionContext;
+	DecisionContext.bHasRecentStimulus = true;
+	DecisionContext.bReachedLastKnownLocation = ToLastKnown.SizeSquared2D() <= FMath::Square(180.0f);
+	DecisionContext.TimeInStateSeconds = TimeInBehaviorState;
+	SetBehaviorState(UUrbanAIDecisionLibrary::ResolveBehaviorState(DecisionContext));
+
+	if (BehaviorState == EUrbanAIBehaviorState::Investigate)
+	{
+		const FVector Direction = ToLastKnown.GetSafeNormal2D();
+		FaceDirection(Direction);
+		MoveInDirection(Direction, 0.75f);
+	}
+	else
+	{
+		PatrolTimer = FMath::Min(PatrolTimer, 0.6f);
+		Patrol(DeltaTime);
+	}
+}
 void UUrbanSimpleBotComponent::HandleRespawn(float DeltaTime)
 {
 	// Prime the countdown on the first frame without a pawn, then wait out
@@ -224,7 +281,7 @@ void UUrbanSimpleBotComponent::EnsureVisibleMesh(APawn* BotPawn)
 	// Load the AnimBlueprint's generated class directly. In a cooked/packaged
 	// build the blueprint asset object is not a standalone loadable object -
 	// only its generated class (*_C) is cooked - so loading the asset itself
-	// fails with "未找到Object" while loading the class works. Same pattern the
+	// fails with "闂備礁鎼悧婊勭濠靛洨鐝舵慨妞诲亾鐎规洘宀搁幆鍌氼潡閺夊碁ct" while loading the class works. Same pattern the
 	// weapon anim-layer linking below already uses.
 	UClass* AnimBPClass = LoadObject<UClass>(nullptr,
 		TEXT("/Game/Characters/Heroes/Mannequin/Animations/ABP_Mannequin_Base.ABP_Mannequin_Base_C"));
@@ -978,7 +1035,9 @@ void UUrbanSimpleBotComponent::DecideAndAct(float DeltaTime, const FVector& Enem
 	}
 
 	const float DistanceToEnemy = FVector::Dist(Pawn->GetActorLocation(), Enemy->GetActorLocation());
-	const float PreferredDistance = GetPreferredEngageDistance();
+	const float PreferredDistance = ArchetypeTuning.PreferredEngagementRangeMeters > 0.0f
+		? ArchetypeTuning.PreferredEngagementRangeMeters * 100.0f
+		: GetPreferredEngageDistance();
 
 	// Low health: retreat toward cover instead of trading shots. Back away
 	// (and stop firing) until the enemy is far enough away or health recovers,
@@ -1012,7 +1071,7 @@ void UUrbanSimpleBotComponent::DecideAndAct(float DeltaTime, const FVector& Enem
 
 	// Throw a grenade when the enemy is at a good mid-range distance, so bots
 	// use their limited stock of two grenades against a distant target.
-	if (GrenadeCount > 0 && DistanceToEnemy > 600.0f && DistanceToEnemy < 1400.0f)
+	if (ArchetypeTuning.bCanUseGrenades && GrenadeCount > 0 && DistanceToEnemy > 600.0f && DistanceToEnemy < 1400.0f)
 	{
 		if (FMath::FRand() < 0.004f) // occasionally, not every frame
 		{
@@ -1051,7 +1110,8 @@ void UUrbanSimpleBotComponent::DecideAndAct(float DeltaTime, const FVector& Enem
 			const FVector StrafeDirection =
 				(FVector::CrossProduct(FVector::UpVector, EnemyDirection) * StrafeDir).GetSafeNormal2D();
 			TurnAndShoot(EnemyDirection);
-			MoveInDirection(StrafeDirection, 0.6f);
+			const float TacticalStrafeScale = FMath::Lerp(0.35f, 0.8f, ArchetypeTuning.FlankPreference);
+			MoveInDirection(StrafeDirection, TacticalStrafeScale);
 		}
 	}
 	else
@@ -1079,6 +1139,29 @@ float UUrbanSimpleBotComponent::GetPreferredEngageDistance() const
 	}
 }
 
+void UUrbanSimpleBotComponent::SetEnemyArchetype(const EUrbanEnemyArchetype InArchetype)
+{
+	EnemyArchetype = InArchetype;
+	ArchetypeTuning = FUrbanEnemyArchetypeTuning::MakeDefaults(InArchetype);
+	SightRange = FMath::Max(SightRange, ArchetypeTuning.PreferredEngagementRangeMeters * 100.0f);
+
+	switch (InArchetype)
+	{
+	case EUrbanEnemyArchetype::Assault:
+		SetWeaponType(EBotWeaponType::Shotgun);
+		break;
+	case EUrbanEnemyArchetype::Marksman:
+		SetWeaponType(EBotWeaponType::Rifle);
+		break;
+	case EUrbanEnemyArchetype::Drone:
+		SetWeaponType(EBotWeaponType::Pistol);
+		break;
+	case EUrbanEnemyArchetype::Rifleman:
+	default:
+		SetWeaponType(EBotWeaponType::Rifle);
+		break;
+	}
+}
 void UUrbanSimpleBotComponent::SetWeaponType(EBotWeaponType InType)
 {
 	WeaponType = InType;

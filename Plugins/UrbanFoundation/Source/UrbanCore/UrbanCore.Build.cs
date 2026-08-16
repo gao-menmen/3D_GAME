@@ -14,6 +14,7 @@ public class UrbanCore : ModuleRules
             "ModularGameplay",
             "LyraGame",
             "Niagara",
+            "UrbanAI",
         });
         PrivateDependencyModuleNames.AddRange(new[]
         {

@@ -120,4 +120,39 @@ bool FUrbanWeaponSelectionContractTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FUrbanRuntimeBotArchetypeIntegrationTest,
+	"UrbanSpear.GameplayStabilization.Bot.ArchetypeIntegration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FUrbanRuntimeBotArchetypeIntegrationTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+
+	UUrbanSimpleBotComponent* Bot = NewObject<UUrbanSimpleBotComponent>();
+	TestNotNull(TEXT("bot component can be constructed"), Bot);
+	if (!Bot)
+	{
+		return false;
+	}
+
+	Bot->SetEnemyArchetype(EUrbanEnemyArchetype::Rifleman);
+	TestEqual(TEXT("rifleman role is retained"), Bot->GetEnemyArchetype(), EUrbanEnemyArchetype::Rifleman);
+	TestEqual(TEXT("rifleman receives rifle magazine"), Bot->GetWeaponProfile().MagazineSize, 30);
+	TestTrue(TEXT("rifleman strongly prefers cover"), Bot->GetArchetypeTuning().CoverPreference >= 0.9f);
+
+	Bot->SetEnemyArchetype(EUrbanEnemyArchetype::Assault);
+	TestEqual(TEXT("assault receives shotgun magazine"), Bot->GetWeaponProfile().MagazineSize, 6);
+	TestTrue(TEXT("assault is grenade capable"), Bot->GetArchetypeTuning().bCanUseGrenades);
+	TestTrue(TEXT("assault strongly prefers flanking"), Bot->GetArchetypeTuning().FlankPreference >= 0.8f);
+
+	Bot->SetEnemyArchetype(EUrbanEnemyArchetype::Marksman);
+	TestEqual(TEXT("marksman receives rifle magazine"), Bot->GetWeaponProfile().MagazineSize, 30);
+	TestTrue(TEXT("marksman has long preferred range"), Bot->GetArchetypeTuning().PreferredEngagementRangeMeters >= 70.0f);
+
+	Bot->SetEnemyArchetype(EUrbanEnemyArchetype::Drone);
+	TestTrue(TEXT("drone role remains aerial"), Bot->GetArchetypeTuning().bIsAerial);
+	TestEqual(TEXT("new runtime bot begins in patrol state"), Bot->GetBehaviorState(), EUrbanAIBehaviorState::PatrolOrGuard);
+	return true;
+}
 #endif
