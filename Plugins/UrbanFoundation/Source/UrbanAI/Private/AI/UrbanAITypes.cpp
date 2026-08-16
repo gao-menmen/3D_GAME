@@ -80,3 +80,8 @@ EUrbanAIBehaviorState UUrbanAIDecisionLibrary::ResolveBehaviorState(const FUrban
 
     return EUrbanAIBehaviorState::PatrolOrGuard;
 }
+
+bool UUrbanAIDecisionLibrary::HasCompletedReaction(const float ConfirmedTargetSeconds, const float ReactionTimeSeconds)
+{
+    return FMath::Max(ConfirmedTargetSeconds, 0.0f) >= FMath::Max(ReactionTimeSeconds, 0.0f);
+}

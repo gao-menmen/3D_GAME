@@ -111,6 +111,7 @@ void UUrbanSimpleBotComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	TimeInBehaviorState += DeltaTime;
 	if (FindVisibleEnemy(EnemyDirection, Enemy))
 	{
+		ConfirmedTargetTime = LockedTarget == Enemy ? ConfirmedTargetTime + DeltaTime : 0.0f;
 		LockedTarget = Enemy;
 		LastKnownTargetLocation = Enemy->GetActorLocation();
 		LastKnownTargetTimeRemaining = 6.0f;
@@ -122,11 +123,24 @@ void UUrbanSimpleBotComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		DecisionContext.bReinforcementBudgetAvailable = false;
 		DecisionContext.TimeInStateSeconds = TimeInBehaviorState;
 		SetBehaviorState(UUrbanAIDecisionLibrary::ResolveBehaviorState(DecisionContext));
-		DecideAndAct(DeltaTime, EnemyDirection, Enemy);
+
+		// Preserve a readable reaction window when a target first enters sight.
+		// The bot tracks the target but cannot attack until the role-specific
+		// reaction delay has elapsed.
+		if (HasCompletedTargetReaction())
+		{
+			DecideAndAct(DeltaTime, EnemyDirection, Enemy);
+		}
+		else
+		{
+			FaceDirection(EnemyDirection);
+			FireReleased();
+		}
 	}
 	else
 	{
 		LockedTarget = nullptr;
+		ConfirmedTargetTime = 0.0f;
 		FireReleased();
 		LastKnownTargetTimeRemaining = FMath::Max(LastKnownTargetTimeRemaining - DeltaTime, 0.0f);
 		if (LastKnownTargetTimeRemaining > 0.0f)
@@ -148,6 +162,12 @@ void UUrbanSimpleBotComponent::SetBehaviorState(const EUrbanAIBehaviorState NewS
 		BehaviorState = NewState;
 		TimeInBehaviorState = 0.0f;
 	}
+}
+
+bool UUrbanSimpleBotComponent::HasCompletedTargetReaction() const
+{
+	return UUrbanAIDecisionLibrary::HasCompletedReaction(
+		ConfirmedTargetTime, ArchetypeTuning.ReactionTimeSeconds);
 }
 
 void UUrbanSimpleBotComponent::ActOnLastKnownTarget(float DeltaTime)
@@ -612,6 +632,8 @@ void UUrbanSimpleBotComponent::FirePressed()
 
 	const FVector Eye = Pawn->GetActorLocation() + FVector(0.0f, 0.0f, Pawn->BaseEyeHeight);
 	const FVector AimDir = BotController->GetControlRotation().Vector();
+	const float SpreadRadians = FMath::DegreesToRadians(ArchetypeTuning.AimSpreadDegrees);
+	const FVector RoleAdjustedAimDir = FMath::VRandCone(AimDir, SpreadRadians);
 	const float Range = GetShotRange();
 	const int32 Pellets = GetPellets();
 
@@ -638,10 +660,10 @@ void UUrbanSimpleBotComponent::FirePressed()
 	float TotalDamage = 0.0f;
 	AActor* HitTarget = nullptr;
 	bool bHitPawn = false;
-	FVector TracerEnd = Eye + AimDir * Range; // default: trace runs to max range
+	FVector TracerEnd = Eye + RoleAdjustedAimDir * Range; // default: trace runs to max range
 	for (int32 PelletIndex = 0; PelletIndex < Pellets; ++PelletIndex)
 	{
-		FVector PelletDir = AimDir;
+		FVector PelletDir = RoleAdjustedAimDir;
 		if (Pellets > 1)
 		{
 			// Spread pellets around the aim direction (e.g. -4, 0, +4 degrees).

@@ -93,4 +93,8 @@ class URBANAI_API UUrbanAIDecisionLibrary : public UBlueprintFunctionLibrary
 public:
     UFUNCTION(BlueprintPure, Category = "Urban Spear|AI")
     static EUrbanAIBehaviorState ResolveBehaviorState(const FUrbanAIDecisionContext& Context);
+
+    /** Prevents newly acquired targets from being engaged before the role-specific reaction delay. */
+    UFUNCTION(BlueprintPure, Category = "Urban Spear|AI")
+    static bool HasCompletedReaction(float ConfirmedTargetSeconds, float ReactionTimeSeconds);
 };

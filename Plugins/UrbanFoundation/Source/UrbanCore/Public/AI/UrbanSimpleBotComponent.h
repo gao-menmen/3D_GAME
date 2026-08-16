@@ -222,8 +222,11 @@ protected:
 	FVector LastKnownTargetLocation = FVector::ZeroVector;
 	float LastKnownTargetTimeRemaining = 0.0f;
 	float TimeInBehaviorState = 0.0f;
+	float ConfirmedTargetTime = 0.0f;
 
 	void SetBehaviorState(EUrbanAIBehaviorState NewState);
+
+	bool HasCompletedTargetReaction() const;
 
 	float FireTimer = 0.0f;
 	float PatrolTimer = 0.0f;

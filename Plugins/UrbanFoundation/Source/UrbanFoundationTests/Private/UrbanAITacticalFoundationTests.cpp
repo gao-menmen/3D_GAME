@@ -113,4 +113,32 @@ bool FUrbanAITacticalGateTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FUrbanAIReactionGateTest,
+    "UrbanSpear.AI.Decision.ReactionGate",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FUrbanAIReactionGateTest::RunTest(const FString& Parameters)
+{
+    (void)Parameters;
+
+    TestFalse(TEXT("new target cannot be attacked immediately"),
+        UUrbanAIDecisionLibrary::HasCompletedReaction(0.0f, 0.65f));
+    TestFalse(TEXT("partial reaction delay remains gated"),
+        UUrbanAIDecisionLibrary::HasCompletedReaction(0.64f, 0.65f));
+    TestTrue(TEXT("elapsed reaction delay authorizes engagement"),
+        UUrbanAIDecisionLibrary::HasCompletedReaction(0.65f, 0.65f));
+    TestTrue(TEXT("negative configuration is safely treated as immediate"),
+        UUrbanAIDecisionLibrary::HasCompletedReaction(0.0f, -1.0f));
+
+    const FUrbanEnemyArchetypeTuning Assault =
+        FUrbanEnemyArchetypeTuning::MakeDefaults(EUrbanEnemyArchetype::Assault);
+    const FUrbanEnemyArchetypeTuning Marksman =
+        FUrbanEnemyArchetypeTuning::MakeDefaults(EUrbanEnemyArchetype::Marksman);
+    TestTrue(TEXT("assault reacts faster than marksman"),
+        Assault.ReactionTimeSeconds < Marksman.ReactionTimeSeconds);
+    TestTrue(TEXT("marksman has tighter aim spread than assault"),
+        Marksman.AimSpreadDegrees < Assault.AimSpreadDegrees);
+    return true;
+}
 #endif
