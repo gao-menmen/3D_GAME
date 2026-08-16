@@ -193,6 +193,12 @@ bool FUrbanTacticalEconomyTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("helmet purchase succeeds after armor"), Economy->TryPurchaseHelmet());
 	TestTrue(TEXT("helmet ownership is retained"), Economy->HasHelmet());
 	TestFalse(TEXT("duplicate helmet purchase is rejected"), Economy->TryPurchaseHelmet());
+	Economy->ApplyArmorDamage(35.0f);
+	TestEqual(TEXT("combat damage consumes armor durability"), Economy->GetArmor(), 65.0f, 0.001f);
+	Economy->ApplyArmorDamage(-10.0f);
+	TestEqual(TEXT("negative armor damage is ignored"), Economy->GetArmor(), 65.0f, 0.001f);
+	Economy->ApplyArmorDamage(500.0f);
+	TestEqual(TEXT("armor durability cannot become negative"), Economy->GetArmor(), 0.0f, 0.001f);
 
 	Economy->AddKillReward();
 	TestEqual(TEXT("kill grants default reward"), Economy->GetFunds(), 600);

@@ -12,7 +12,10 @@
     "Plugins/UrbanFoundation/Source/UrbanCore/Private/GameMode/UrbanBotComponent.cpp",
     "Plugins/UrbanFoundation/Source/UrbanAI/Public/AI/UrbanAITypes.h",
     "Source/LyraGame/Player/LyraTacticalEconomyComponent.h",
-    "Source/LyraGame/Player/LyraTacticalEconomyComponent.cpp"
+    "Source/LyraGame/Player/LyraTacticalEconomyComponent.cpp",
+    "Source/LyraGame/AbilitySystem/Executions/LyraDamageExecution.cpp",
+    "Source/LyraGame/Player/LyraPlayerController.h",
+    "Source/LyraGame/Player/LyraPlayerController.cpp"
   ],
   "requiredTests": [
     "UrbanSpear.GameplayStabilization.Bot.WeaponProfiles",

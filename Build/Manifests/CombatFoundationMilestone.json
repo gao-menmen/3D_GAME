@@ -16,7 +16,10 @@
     "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanAmmoStateTests.cpp",
     "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanAmmoComponentTests.cpp",
     "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanDamageModelTests.cpp",
-    "docs/build/combat-foundation-verification.md"
+    "docs/build/combat-foundation-verification.md",
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Public/Combat/UrbanHitRegionResolver.h",
+    "Plugins/UrbanFoundation/Source/UrbanCombat/Private/Combat/UrbanHitRegionResolver.cpp",
+    "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanHitRegionResolverTests.cpp"
   ],
   "requiredUrbanCombatDependencies": [
     "Core",
@@ -32,6 +35,7 @@
     "UrbanSpear.Combat.Catalog.ThreeWeaponArchetypes",
     "UrbanSpear.Combat.Catalog.WeaponSanitize",
     "UrbanSpear.Combat.Damage.HitRegions",
+    "UrbanSpear.Combat.Damage.BoneMapping",
     "UrbanSpear.Combat.Damage.HelmetArmor",
     "UrbanSpear.Combat.Damage.LethalClamp",
     "UrbanSpear.Combat.Damage.TorsoArmor"

@@ -14,6 +14,8 @@ class LYRAGAME_API ULyraTacticalEconomyComponent : public UActorComponent
 public:
 	ULyraTacticalEconomyComponent(const FObjectInitializer& ObjectInitializer);
 
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 	UFUNCTION(BlueprintPure, Category="Lyra|Tactical Economy")
 	int32 GetFunds() const { return Funds; }
 
@@ -25,6 +27,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Lyra|Tactical Economy")
 	bool HasHelmet() const { return bHasHelmet; }
+
+	/** Consumes armor durability after the shared damage model resolves a hit. */
+	UFUNCTION(BlueprintCallable, Category="Lyra|Tactical Economy")
+	void ApplyArmorDamage(float Damage);
 
 	/** Deducts a validated non-negative price. Failed purchases never change funds. */
 	UFUNCTION(BlueprintCallable, Category="Lyra|Tactical Economy")
@@ -49,12 +55,25 @@ public:
 	static int32 ClampFunds(int32 InFunds);
 
 private:
-	UPROPERTY(VisibleInstanceOnly, Category="Lyra|Tactical Economy")
+	UFUNCTION(Server, Reliable)
+	void ServerTryPurchase(int32 Price);
+
+	UFUNCTION(Server, Reliable)
+	void ServerTryPurchaseArmor(int32 Price);
+
+	UFUNCTION(Server, Reliable)
+	void ServerTryPurchaseHelmet(int32 Price);
+
+	bool ShouldMirrorPurchaseToServer() const;
+	bool TryPurchaseArmorInternal(int32 Price);
+	bool TryPurchaseHelmetInternal(int32 Price);
+
+	UPROPERTY(Replicated, VisibleInstanceOnly, Category="Lyra|Tactical Economy")
 	int32 Funds = 4000;
 
-	UPROPERTY(VisibleInstanceOnly, Category="Lyra|Tactical Economy")
+	UPROPERTY(Replicated, VisibleInstanceOnly, Category="Lyra|Tactical Economy")
 	float Armor = 0.0f;
 
-	UPROPERTY(VisibleInstanceOnly, Category="Lyra|Tactical Economy")
+	UPROPERTY(Replicated, VisibleInstanceOnly, Category="Lyra|Tactical Economy")
 	bool bHasHelmet = false;
 };

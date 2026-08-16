@@ -20,6 +20,7 @@
 #include "GameModes/LyraGameState.h"
 #include "Settings/LyraSettingsLocal.h"
 #include "Settings/LyraSettingsShared.h"
+#include "Player/LyraTacticalEconomyComponent.h"
 #include "Replays/LyraReplaySubsystem.h"
 #include "ReplaySubsystem.h"
 #include "Development/LyraDeveloperSettings.h"
@@ -46,6 +47,7 @@ ALyraPlayerController::ALyraPlayerController(const FObjectInitializer& ObjectIni
 	: Super(ObjectInitializer)
 {
 	PlayerCameraManagerClass = ALyraPlayerCameraManager::StaticClass();
+	TacticalEconomyComponent = CreateDefaultSubobject<ULyraTacticalEconomyComponent>(TEXT("TacticalEconomy"));
 
 #if USING_CHEAT_MANAGER
 	CheatClass = ULyraCheatManager::StaticClass();

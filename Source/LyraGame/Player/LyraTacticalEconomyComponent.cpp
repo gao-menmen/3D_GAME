@@ -2,10 +2,31 @@
 
 #include "Player/LyraTacticalEconomyComponent.h"
 
+#include "Net/UnrealNetwork.h"
+
 ULyraTacticalEconomyComponent::ULyraTacticalEconomyComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	SetIsReplicatedByDefault(true);
+}
+
+void ULyraTacticalEconomyComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME_CONDITION(ULyraTacticalEconomyComponent, Funds, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(ULyraTacticalEconomyComponent, Armor, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(ULyraTacticalEconomyComponent, bHasHelmet, COND_OwnerOnly);
+}
+
+bool ULyraTacticalEconomyComponent::ShouldMirrorPurchaseToServer() const
+{
+	return GetOwner() && !GetOwner()->HasAuthority();
+}
+
+void ULyraTacticalEconomyComponent::ApplyArmorDamage(const float Damage)
+{
+	Armor = FMath::Max(Armor - FMath::Max(Damage, 0.0f), 0.0f);
 }
 
 bool ULyraTacticalEconomyComponent::CanAfford(const int32 Price) const
@@ -20,27 +41,68 @@ bool ULyraTacticalEconomyComponent::TryPurchase(const int32 Price)
 		return false;
 	}
 	Funds -= Price;
+	if (ShouldMirrorPurchaseToServer())
+	{
+		ServerTryPurchase(Price);
+	}
+	return true;
+}
+
+bool ULyraTacticalEconomyComponent::TryPurchaseArmorInternal(const int32 Price)
+{
+	if (Armor >= 100.0f || !CanAfford(Price))
+	{
+		return false;
+	}
+	Funds -= Price;
+	Armor = 100.0f;
 	return true;
 }
 
 bool ULyraTacticalEconomyComponent::TryPurchaseArmor(const int32 Price)
 {
-	if (Armor >= 100.0f || !TryPurchase(Price))
+	const bool bPurchased = TryPurchaseArmorInternal(Price);
+	if (bPurchased && ShouldMirrorPurchaseToServer())
+	{
+		ServerTryPurchaseArmor(Price);
+	}
+	return bPurchased;
+}
+
+bool ULyraTacticalEconomyComponent::TryPurchaseHelmetInternal(const int32 Price)
+{
+	if (bHasHelmet || Armor <= 0.0f || !CanAfford(Price))
 	{
 		return false;
 	}
-	Armor = 100.0f;
+	Funds -= Price;
+	bHasHelmet = true;
 	return true;
 }
 
 bool ULyraTacticalEconomyComponent::TryPurchaseHelmet(const int32 Price)
 {
-	if (bHasHelmet || Armor <= 0.0f || !TryPurchase(Price))
+	const bool bPurchased = TryPurchaseHelmetInternal(Price);
+	if (bPurchased && ShouldMirrorPurchaseToServer())
 	{
-		return false;
+		ServerTryPurchaseHelmet(Price);
 	}
-	bHasHelmet = true;
-	return true;
+	return bPurchased;
+}
+
+void ULyraTacticalEconomyComponent::ServerTryPurchase_Implementation(const int32 Price)
+{
+	TryPurchase(Price);
+}
+
+void ULyraTacticalEconomyComponent::ServerTryPurchaseArmor_Implementation(const int32 Price)
+{
+	TryPurchaseArmorInternal(Price);
+}
+
+void ULyraTacticalEconomyComponent::ServerTryPurchaseHelmet_Implementation(const int32 Price)
+{
+	TryPurchaseHelmetInternal(Price);
 }
 
 void ULyraTacticalEconomyComponent::AddKillReward(const int32 Reward)

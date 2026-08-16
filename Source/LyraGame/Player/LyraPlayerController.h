@@ -20,6 +20,7 @@ class FPrimitiveComponentId;
 class IInputInterface;
 class ULyraAbilitySystemComponent;
 class ULyraSettingsShared;
+class ULyraTacticalEconomyComponent;
 class UObject;
 class UPlayer;
 struct FFrame;
@@ -46,6 +47,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Lyra|PlayerController")
 	UE_API ALyraHUD* GetLyraHUD() const;
+
+	UFUNCTION(BlueprintPure, Category = "Lyra|Tactical Economy")
+	ULyraTacticalEconomyComponent* GetTacticalEconomyComponent() const { return TacticalEconomyComponent; }
 
 	// Call from game state logic to start recording an automatic client replay if ShouldRecordClientReplay returns true
 	UFUNCTION(BlueprintCallable, Category = "Lyra|PlayerController")
@@ -105,6 +109,9 @@ public:
 	UE_API bool GetIsAutoRunning() const;
 
 private:
+	UPROPERTY(VisibleAnywhere, Category = "Lyra|Tactical Economy")
+	TObjectPtr<ULyraTacticalEconomyComponent> TacticalEconomyComponent;
+
 	UPROPERTY()
 	FOnLyraTeamIndexChangedDelegate OnTeamChangedDelegate;
 

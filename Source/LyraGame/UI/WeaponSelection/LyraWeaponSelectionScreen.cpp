@@ -393,13 +393,7 @@ ULyraTacticalEconomyComponent* ULyraWeaponSelectionScreen::FindOrAddEconomyCompo
 		return nullptr;
 	}
 
-	ULyraTacticalEconomyComponent* Economy = PC->FindComponentByClass<ULyraTacticalEconomyComponent>();
-	if (!Economy)
-	{
-		Economy = NewObject<ULyraTacticalEconomyComponent>(PC, TEXT("TacticalEconomy"));
-		Economy->RegisterComponent();
-	}
-	return Economy;
+	return PC->FindComponentByClass<ULyraTacticalEconomyComponent>();
 }
 
 void ULyraWeaponSelectionScreen::PurchaseArmor(const bool bHelmet)
