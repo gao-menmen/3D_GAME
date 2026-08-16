@@ -102,37 +102,40 @@ void ULyraWeaponSelectionScreen::NativeConstruct()
 	}
 }
 
-FReply ULyraWeaponSelectionScreen::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
+int32 ULyraWeaponSelectionScreen::ResolveSelectionIndex(const FKey& Key)
 {
-	const FKey Key = InKeyEvent.GetKey();
-	if (Key == EKeys::One || Key == EKeys::NumPadOne)
+	if (Key == EKeys::One || Key == EKeys::NumPadOne || Key == EKeys::Enter)
 	{
-		UE_LOG(LogLyra, Log, TEXT("WeaponSelection: hotkey 1 (pistol)."));
-		OnPistolClicked();
-		return FReply::Handled();
+		return 0;
 	}
 	if (Key == EKeys::Two || Key == EKeys::NumPadTwo)
 	{
-		UE_LOG(LogLyra, Log, TEXT("WeaponSelection: hotkey 2 (rifle)."));
-		OnRifleClicked();
-		return FReply::Handled();
+		return 1;
 	}
 	if (Key == EKeys::Three || Key == EKeys::NumPadThree)
 	{
-		UE_LOG(LogLyra, Log, TEXT("WeaponSelection: hotkey 3 (shotgun)."));
-		OnShotgunClicked();
-		return FReply::Handled();
+		return 2;
 	}
-	if (Key == EKeys::Enter)
-	{
-		// Enter picks the first (pistol) option by default.
-		UE_LOG(LogLyra, Log, TEXT("WeaponSelection: hotkey Enter (pistol)."));
-		OnPistolClicked();
-		return FReply::Handled();
-	}
-	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
+	return INDEX_NONE;
 }
 
+FReply ULyraWeaponSelectionScreen::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
+{
+	switch (ResolveSelectionIndex(InKeyEvent.GetKey()))
+	{
+	case 0:
+		OnPistolClicked();
+		return FReply::Handled();
+	case 1:
+		OnRifleClicked();
+		return FReply::Handled();
+	case 2:
+		OnShotgunClicked();
+		return FReply::Handled();
+	default:
+		return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
+	}
+}
 void ULyraWeaponSelectionScreen::BuildMenu()
 {
 	if (!WidgetTree)

@@ -1,0 +1,18 @@
+{
+    "schemaVersion":  1,
+    "milestone":  "gameplay-stabilization",
+    "requiredPaths":  [
+                          "Plugins/UrbanFoundation/Source/UrbanCore/Public/AI/UrbanSimpleBotComponent.h",
+                          "Plugins/UrbanFoundation/Source/UrbanCore/Private/AI/UrbanSimpleBotComponent.cpp",
+                          "Source/LyraGame/Weapons/UrbanSmokeCloud.h",
+                          "Source/LyraGame/Weapons/UrbanSmokeCloud.cpp",
+                          "Source/LyraGame/UI/WeaponSelection/LyraWeaponSelectionScreen.h",
+                          "Source/LyraGame/UI/WeaponSelection/LyraWeaponSelectionScreen.cpp",
+                          "Plugins/UrbanFoundation/Source/UrbanFoundationTests/Private/UrbanGameplayStabilizationTests.cpp"
+                      ],
+    "requiredTests":  [
+                          "UrbanSpear.GameplayStabilization.Bot.WeaponProfiles",
+                          "UrbanSpear.GameplayStabilization.Smoke.Lifecycle",
+                          "UrbanSpear.GameplayStabilization.UI.WeaponSelection"
+                      ]
+}

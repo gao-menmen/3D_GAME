@@ -30,8 +30,14 @@ class AUrbanSmokeCloud : public AActor
 public:
 	UE_API AUrbanSmokeCloud(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
+	/** Resolves the normalized visual density for a lifecycle age. */
+	UE_API static float ResolveLifecycleAlpha(float Age, float GrowTime, float Lifetime, float FadeTime);
+
 	/** Radius (units) within which this cloud blocks bot line of sight. */
 	UE_API float GetCloudRadius() const { return OcclusionRadius; }
+	UE_API float GetLifetime() const { return Lifetime; }
+	UE_API float GetGrowTime() const { return GrowTime; }
+	UE_API float GetFadeTime() const { return FadeTime; }
 
 	//~ Begin AActor
 	UE_API virtual void Tick(float DeltaSeconds) override;

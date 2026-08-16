@@ -21,6 +21,16 @@ enum class EBotWeaponType : uint8
 	Shotgun
 };
 
+/** Immutable combat values resolved for the bot's selected weapon. */
+struct FUrbanBotWeaponProfile
+{
+	float Damage = 0.0f;
+	float FireInterval = 0.0f;
+	float Range = 0.0f;
+	int32 Pellets = 1;
+	int32 MagazineSize = 0;
+};
+
 /**
  * Simple, self-contained bot AI. No behavior tree, no perception component -
  * every module is a plain function driven by TickComponent:
@@ -109,6 +119,9 @@ public:
 
 	// Sets the bot's weapon type and its derived combat stats.
 	void SetWeaponType(EBotWeaponType InType);
+
+	// Returns the complete validated combat profile for the selected weapon.
+	FUrbanBotWeaponProfile GetWeaponProfile() const;
 
 	// Throws one grenade at the current locked target (limited stock).
 	void ThrowGrenade();

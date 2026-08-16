@@ -1084,6 +1084,16 @@ void UUrbanSimpleBotComponent::SetWeaponType(EBotWeaponType InType)
 	WeaponType = InType;
 	AmmoInMagazine = GetMagazineSize();
 }
+FUrbanBotWeaponProfile UUrbanSimpleBotComponent::GetWeaponProfile() const
+{
+	FUrbanBotWeaponProfile Profile;
+	Profile.Damage = GetShotDamage();
+	Profile.FireInterval = GetShotInterval();
+	Profile.Range = GetShotRange();
+	Profile.Pellets = GetPellets();
+	Profile.MagazineSize = GetMagazineSize();
+	return Profile;
+}
 
 int32 UUrbanSimpleBotComponent::GetMagazineSize() const
 {

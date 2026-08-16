@@ -24,7 +24,7 @@ class UVerticalBox;
  * A 15s timer falls back to the pistol so the player can never be stuck.
  */
 UCLASS(Blueprintable)
-class ULyraWeaponSelectionScreen : public UUserWidget
+class LYRAGAME_API ULyraWeaponSelectionScreen : public UUserWidget
 {
 	GENERATED_BODY()
 
@@ -36,6 +36,13 @@ public:
 	virtual void NativeConstruct() override;
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 	//~End of UUserWidget interface
+
+	/** Returns the supported selection index (0-2), or INDEX_NONE for other keys. */
+	static int32 ResolveSelectionIndex(const FKey& Key);
+
+	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetPistolItemDefinition() const { return PistolItemDefinition; }
+	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetRifleItemDefinition() const { return RifleItemDefinition; }
+	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetShotgunItemDefinition() const { return ShotgunItemDefinition; }
 
 protected:
 	UFUNCTION()
