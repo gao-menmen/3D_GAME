@@ -19,6 +19,7 @@
 #include "Inventory/LyraInventoryItemInstance.h"
 #include "Inventory/LyraInventoryManagerComponent.h"
 #include "LyraLogChannels.h"
+#include "Player/LyraTacticalEconomyComponent.h"
 #include "Styling/CoreStyle.h"
 #include "Styling/SlateBrush.h"
 #include "TimerManager.h"
@@ -28,14 +29,14 @@
 
 namespace UrbanWeaponSelection
 {
-	const FText TitleText = NSLOCTEXT("UrbanWeaponSelection", "Title", "选择武器");
-	const FText SubtitleText = NSLOCTEXT("UrbanWeaponSelection", "Subtitle", "挑选你的初始武器，开始战斗");
-	const FText PistolText = NSLOCTEXT("UrbanWeaponSelection", "Pistol", "手枪");
-	const FText RifleText = NSLOCTEXT("UrbanWeaponSelection", "Rifle", "步枪");
-	const FText ShotgunText = NSLOCTEXT("UrbanWeaponSelection", "Shotgun", "霰弹枪");
-	const FText PistolDesc = NSLOCTEXT("UrbanWeaponSelection", "PistolDesc", "均衡 · 中近距离");
-	const FText RifleDesc = NSLOCTEXT("UrbanWeaponSelection", "RifleDesc", "连射 · 中远距离");
-	const FText ShotgunDesc = NSLOCTEXT("UrbanWeaponSelection", "ShotgunDesc", "爆发 · 近距离");
+	const FText TitleText = NSLOCTEXT("UrbanWeaponSelection", "Title", "TACTICAL BUY MENU");
+	const FText SubtitleText = NSLOCTEXT("UrbanWeaponSelection", "Subtitle", "Choose a loadout before deployment");
+	const FText PistolText = NSLOCTEXT("UrbanWeaponSelection", "Pistol", "[1] SIDEARM  |  $0");
+	const FText RifleText = NSLOCTEXT("UrbanWeaponSelection", "Rifle", "[2] RIFLE  |  $2700");
+	const FText ShotgunText = NSLOCTEXT("UrbanWeaponSelection", "Shotgun", "[3] SHOTGUN  |  $1800");
+	const FText PistolDesc = NSLOCTEXT("UrbanWeaponSelection", "PistolDesc", "Free fallback / balanced at close range");
+	const FText RifleDesc = NSLOCTEXT("UrbanWeaponSelection", "RifleDesc", "Automatic / reliable at medium range");
+	const FText ShotgunDesc = NSLOCTEXT("UrbanWeaponSelection", "ShotgunDesc", "High impact / close range");
 	const TCHAR* PistolPath = TEXT("/ShooterCore/Weapons/Pistol/ID_Pistol.ID_Pistol_C");
 	const TCHAR* RiflePath = TEXT("/ShooterCore/Weapons/Rifle/ID_Rifle.ID_Rifle_C");
 	const TCHAR* ShotgunPath = TEXT("/ShooterCore/Weapons/Shotgun/ID_Shotgun.ID_Shotgun_C");
@@ -117,6 +118,17 @@ int32 ULyraWeaponSelectionScreen::ResolveSelectionIndex(const FKey& Key)
 		return 2;
 	}
 	return INDEX_NONE;
+}
+
+int32 ULyraWeaponSelectionScreen::ResolveWeaponPrice(const int32 SelectionIndex)
+{
+	switch (SelectionIndex)
+	{
+	case 0: return 0;
+	case 1: return 2700;
+	case 2: return 1800;
+	default: return INDEX_NONE;
+	}
 }
 
 FReply ULyraWeaponSelectionScreen::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
@@ -238,7 +250,7 @@ void ULyraWeaponSelectionScreen::BuildMenu()
 	UTextBlock* Hint = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("Hint"));
 	if (Hint)
 	{
-		Hint->SetText(FText::FromString(TEXT("按 1/2/3 选择，或点击按钮")));
+		Hint->SetText(FText::FromString(TEXT("Press 1/2/3 or click to buy  |  15s buy time")));
 		Hint->SetFont(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 20));
 		Hint->SetColorAndOpacity(FSlateColor(FLinearColor(0.7f, 0.7f, 0.75f)));
 		Hint->SetJustification(ETextJustify::Center);
@@ -310,28 +322,28 @@ UButton* ULyraWeaponSelectionScreen::MakeButton(const FText& Label, const FText&
 void ULyraWeaponSelectionScreen::OnPistolClicked()
 {
 	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: pistol clicked."));
-	SelectWeapon(PistolItemDefinition);
+	SelectWeapon(PistolItemDefinition, ResolveWeaponPrice(0));
 }
 
 void ULyraWeaponSelectionScreen::OnRifleClicked()
 {
 	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: rifle clicked."));
-	SelectWeapon(RifleItemDefinition);
+	SelectWeapon(RifleItemDefinition, ResolveWeaponPrice(1));
 }
 
 void ULyraWeaponSelectionScreen::OnShotgunClicked()
 {
 	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: shotgun clicked."));
-	SelectWeapon(ShotgunItemDefinition);
+	SelectWeapon(ShotgunItemDefinition, ResolveWeaponPrice(2));
 }
 
 void ULyraWeaponSelectionScreen::OnSelectionTimeout()
 {
 	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: 15s timeout, falling back to pistol."));
-	SelectWeapon(PistolItemDefinition);
+	SelectWeapon(PistolItemDefinition, ResolveWeaponPrice(0));
 }
 
-void ULyraWeaponSelectionScreen::SelectWeapon(TSoftClassPtr<ULyraInventoryItemDefinition> ItemDefClass)
+void ULyraWeaponSelectionScreen::SelectWeapon(TSoftClassPtr<ULyraInventoryItemDefinition> ItemDefClass, const int32 Price)
 {
 	if (bSelectionMade)
 	{
@@ -358,10 +370,24 @@ void ULyraWeaponSelectionScreen::SelectWeapon(TSoftClassPtr<ULyraInventoryItemDe
 		RestoreGameInput();
 		return;
 	}
+	ULyraTacticalEconomyComponent* Economy = PC->FindComponentByClass<ULyraTacticalEconomyComponent>();
+	if (!Economy)
+	{
+		Economy = NewObject<ULyraTacticalEconomyComponent>(PC, TEXT("TacticalEconomy"));
+		Economy->RegisterComponent();
+	}
+	if (!Economy || !Economy->TryPurchase(Price))
+	{
+		UE_LOG(LogLyra, Warning, TEXT("WeaponSelection: purchase denied, price=%d funds=%d."),
+			Price, Economy ? Economy->GetFunds() : 0);
+		return; // Keep the buy menu open so the player can choose an affordable item.
+	}
+
 	APawn* Pawn = PC->GetPawn();
 	if (!Pawn)
 	{
 		UE_LOG(LogLyra, Warning, TEXT("WeaponSelection: no pawn on controller."));
+		Economy->AddKillReward(Price);
 		RestoreGameInput();
 		return;
 	}
@@ -378,6 +404,7 @@ void ULyraWeaponSelectionScreen::SelectWeapon(TSoftClassPtr<ULyraInventoryItemDe
 	{
 		UE_LOG(LogLyra, Warning, TEXT("WeaponSelection: missing InventoryManager (%d) or QuickBar (%d) component."),
 			Inventory != nullptr, QuickBar != nullptr);
+		Economy->AddKillReward(Price);
 		RestoreGameInput();
 		return;
 	}
@@ -392,6 +419,7 @@ void ULyraWeaponSelectionScreen::SelectWeapon(TSoftClassPtr<ULyraInventoryItemDe
 	if (!NewItem)
 	{
 		UE_LOG(LogLyra, Warning, TEXT("WeaponSelection: AddItemDefinition failed for %s."), *LoadedClass->GetName());
+		Economy->AddKillReward(Price);
 		RestoreGameInput();
 		return;
 	}
@@ -403,8 +431,8 @@ void ULyraWeaponSelectionScreen::SelectWeapon(TSoftClassPtr<ULyraInventoryItemDe
 	QuickBar->AddItemToSlot(SlotIndex, NewItem);
 	QuickBar->SetActiveSlotIndex(SlotIndex);
 
-	UE_LOG(LogLyra, Log, TEXT("Weapon selection: equipped %s in quick bar slot %d"),
-		*LoadedClass->GetName(), SlotIndex);
+	UE_LOG(LogLyra, Log, TEXT("Weapon selection: equipped %s in slot %d for $%d; funds=$%d"),
+		*LoadedClass->GetName(), SlotIndex, Price, Economy->GetFunds());
 
 	RestoreGameInput();
 }

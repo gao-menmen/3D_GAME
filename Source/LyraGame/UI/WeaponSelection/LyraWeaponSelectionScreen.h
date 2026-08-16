@@ -40,6 +40,9 @@ public:
 	/** Returns the supported selection index (0-2), or INDEX_NONE for other keys. */
 	static int32 ResolveSelectionIndex(const FKey& Key);
 
+	/** Tactical buy prices: sidearm / rifle / shotgun. */
+	static int32 ResolveWeaponPrice(int32 SelectionIndex);
+
 	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetPistolItemDefinition() const { return PistolItemDefinition; }
 	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetRifleItemDefinition() const { return RifleItemDefinition; }
 	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetShotgunItemDefinition() const { return ShotgunItemDefinition; }
@@ -57,7 +60,7 @@ protected:
 	UFUNCTION()
 	void OnSelectionTimeout();
 
-	void SelectWeapon(TSoftClassPtr<ULyraInventoryItemDefinition> ItemDefClass);
+	void SelectWeapon(TSoftClassPtr<ULyraInventoryItemDefinition> ItemDefClass, int32 Price);
 	void BuildMenu();
 	UButton* MakeButton(const FText& Label, const FText& Description);
 	void RestoreGameInput();

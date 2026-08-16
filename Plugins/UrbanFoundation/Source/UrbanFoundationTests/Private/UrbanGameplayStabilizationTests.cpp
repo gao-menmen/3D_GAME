@@ -1,6 +1,7 @@
 #include "AI/UrbanSimpleBotComponent.h"
 #include "InputCoreTypes.h"
 #include "Misc/AutomationTest.h"
+#include "Player/LyraTacticalEconomyComponent.h"
 #include "UI/WeaponSelection/LyraWeaponSelectionScreen.h"
 #include "Weapons/UrbanSmokeCloud.h"
 
@@ -117,6 +118,10 @@ bool FUrbanWeaponSelectionContractTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("3 selects shotgun"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Three), 2);
 	TestEqual(TEXT("enter accepts pistol default"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Enter), 0);
 	TestEqual(TEXT("unsupported key is rejected"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Escape), INDEX_NONE);
+	TestEqual(TEXT("sidearm is the free fallback"), ULyraWeaponSelectionScreen::ResolveWeaponPrice(0), 0);
+	TestEqual(TEXT("rifle has a premium tactical price"), ULyraWeaponSelectionScreen::ResolveWeaponPrice(1), 2700);
+	TestEqual(TEXT("shotgun has a close-range price"), ULyraWeaponSelectionScreen::ResolveWeaponPrice(2), 1800);
+	TestEqual(TEXT("invalid selection has no price"), ULyraWeaponSelectionScreen::ResolveWeaponPrice(99), INDEX_NONE);
 	return true;
 }
 
@@ -155,4 +160,37 @@ bool FUrbanRuntimeBotArchetypeIntegrationTest::RunTest(const FString& Parameters
 	TestEqual(TEXT("new runtime bot begins in patrol state"), Bot->GetBehaviorState(), EUrbanAIBehaviorState::PatrolOrGuard);
 	return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FUrbanTacticalEconomyTest,
+	"UrbanSpear.GameplayStabilization.Economy.PurchaseAndRoundAwards",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FUrbanTacticalEconomyTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+
+	ULyraTacticalEconomyComponent* Economy = NewObject<ULyraTacticalEconomyComponent>();
+	TestNotNull(TEXT("economy component can be constructed"), Economy);
+	if (!Economy)
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("player starts with tactical funds"), Economy->GetFunds(), 4000);
+	TestTrue(TEXT("rifle purchase succeeds"), Economy->TryPurchase(2700));
+	TestEqual(TEXT("purchase deducts exact price"), Economy->GetFunds(), 1300);
+	TestFalse(TEXT("unaffordable purchase is rejected"), Economy->TryPurchase(1800));
+	TestEqual(TEXT("failed purchase preserves funds"), Economy->GetFunds(), 1300);
+	TestFalse(TEXT("negative price is rejected"), Economy->TryPurchase(-1));
+
+	Economy->AddKillReward();
+	TestEqual(TEXT("kill grants default reward"), Economy->GetFunds(), 1600);
+	Economy->AddRoundAward(false, 2);
+	TestEqual(TEXT("loss streak increases recovery award"), Economy->GetFunds(), 4000);
+	TestEqual(TEXT("round win award is stable"), ULyraTacticalEconomyComponent::ResolveRoundAward(true, 4), 3250);
+	TestEqual(TEXT("loss award is capped"), ULyraTacticalEconomyComponent::ResolveRoundAward(false, 99), 3400);
+	TestEqual(TEXT("wallet maximum is capped"), ULyraTacticalEconomyComponent::ClampFunds(50000), 16000);
+	return true;
+}
+
 #endif
