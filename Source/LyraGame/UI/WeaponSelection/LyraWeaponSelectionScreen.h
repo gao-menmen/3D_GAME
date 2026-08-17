@@ -40,6 +40,8 @@ public:
 
 	/** Returns the supported selection index (0-9), or INDEX_NONE for other keys. */
 	static int32 ResolveSelectionIndex(const FKey& Key);
+	/** F1-F3 map shortcut mapping, independent from the 1-0 buy/customization keys. */
+	static int32 ResolveMapSelectionIndex(const FKey& Key);
 
 	/** Tactical buy prices: sidearm / rifle / shotgun / armor / helmet. */
 	static int32 ResolveWeaponPrice(int32 SelectionIndex);
@@ -80,6 +82,16 @@ protected:
 
 	UFUNCTION()
 	void OnAssaultUniformClicked();
+	UFUNCTION()
+	void OnConvolutionMapClicked();
+
+	UFUNCTION()
+	void OnExpanseMapClicked();
+
+	UFUNCTION()
+	void OnFiringRangeMapClicked();
+
+	void SelectMap(int32 MapIndex);
 
 	UFUNCTION()
 	void OnSelectionTimeout();

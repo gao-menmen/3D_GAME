@@ -714,3 +714,37 @@ void ALyraPlayerController::ApplyOperatorCustomization()
 		}
 	}
 }
+
+FString ALyraPlayerController::ResolvePlayableMapPath(const int32 MapIndex)
+{
+	switch (MapIndex)
+	{
+	case 0: return TEXT("/ShooterMaps/Maps/L_Convolution_Blockout");
+	case 1: return TEXT("/ShooterMaps/Maps/L_Expanse");
+	case 2: return TEXT("/ShooterMaps/Maps/L_FiringRange_WP");
+	default: return FString();
+	}
+}
+
+void ALyraPlayerController::RequestPlayableMap(const int32 MapIndex)
+{
+	if (!ResolvePlayableMapPath(MapIndex).IsEmpty())
+	{
+		ServerRequestPlayableMap(MapIndex);
+	}
+}
+
+void ALyraPlayerController::ServerRequestPlayableMap_Implementation(const int32 MapIndex)
+{
+	const FString MapPath = ResolvePlayableMapPath(MapIndex);
+	if (MapPath.IsEmpty())
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		UE_LOG(LogLyra, Log, TEXT("MapSelection: server travelling all players to %s"), *MapPath);
+		World->ServerTravel(MapPath, false);
+	}
+}

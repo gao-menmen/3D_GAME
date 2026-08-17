@@ -44,6 +44,9 @@ namespace UrbanWeaponSelection
 	const FText UrbanText = NSLOCTEXT("UrbanWeaponSelection", "Urban", "[8] UNIFORM: URBAN");
 	const FText StealthText = NSLOCTEXT("UrbanWeaponSelection", "Stealth", "[9] UNIFORM: STEALTH");
 	const FText AssaultText = NSLOCTEXT("UrbanWeaponSelection", "Assault", "[0] UNIFORM: ASSAULT");
+	const FText ConvolutionMapText = NSLOCTEXT("UrbanWeaponSelection", "ConvolutionMap", "[F1] MAP: CONVOLUTION");
+	const FText ExpanseMapText = NSLOCTEXT("UrbanWeaponSelection", "ExpanseMap", "[F2] MAP: EXPANSE");
+	const FText FiringRangeMapText = NSLOCTEXT("UrbanWeaponSelection", "FiringRangeMap", "[F3] MAP: FIRING RANGE");
 	const FText PistolDesc = NSLOCTEXT("UrbanWeaponSelection", "PistolDesc", "Free fallback / balanced at close range");
 	const FText RifleDesc = NSLOCTEXT("UrbanWeaponSelection", "RifleDesc", "Automatic / reliable at medium range");
 	const FText ShotgunDesc = NSLOCTEXT("UrbanWeaponSelection", "ShotgunDesc", "High impact / close range");
@@ -54,6 +57,9 @@ namespace UrbanWeaponSelection
 	const FText UrbanDesc = NSLOCTEXT("UrbanWeaponSelection", "UrbanDesc", "Balanced city tactical finish");
 	const FText StealthDesc = NSLOCTEXT("UrbanWeaponSelection", "StealthDesc", "Low-visibility matte finish");
 	const FText AssaultDesc = NSLOCTEXT("UrbanWeaponSelection", "AssaultDesc", "High-contrast combat finish");
+	const FText ConvolutionMapDesc = NSLOCTEXT("UrbanWeaponSelection", "ConvolutionMapDesc", "Urban lanes / close and medium range");
+	const FText ExpanseMapDesc = NSLOCTEXT("UrbanWeaponSelection", "ExpanseMapDesc", "Open terrain / medium and long range");
+	const FText FiringRangeMapDesc = NSLOCTEXT("UrbanWeaponSelection", "FiringRangeMapDesc", "Training / weapon and movement practice");
 	const TCHAR* PistolPath = TEXT("/ShooterCore/Weapons/Pistol/ID_Pistol.ID_Pistol_C");
 	const TCHAR* RiflePath = TEXT("/ShooterCore/Weapons/Rifle/ID_Rifle.ID_Rifle_C");
 	const TCHAR* ShotgunPath = TEXT("/ShooterCore/Weapons/Shotgun/ID_Shotgun.ID_Shotgun_C");
@@ -150,6 +156,14 @@ int32 ULyraWeaponSelectionScreen::ResolveSelectionIndex(const FKey& Key)
 	return INDEX_NONE;
 }
 
+int32 ULyraWeaponSelectionScreen::ResolveMapSelectionIndex(const FKey& Key)
+{
+	if (Key == EKeys::F1) return 0;
+	if (Key == EKeys::F2) return 1;
+	if (Key == EKeys::F3) return 2;
+	return INDEX_NONE;
+}
+
 FName ULyraWeaponSelectionScreen::GetSelectionShownTag()
 {
 	return FName(TEXT("Urban.WeaponSelectionShown"));
@@ -170,6 +184,13 @@ int32 ULyraWeaponSelectionScreen::ResolveWeaponPrice(const int32 SelectionIndex)
 
 FReply ULyraWeaponSelectionScreen::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
 {
+	const int32 MapIndex = ResolveMapSelectionIndex(InKeyEvent.GetKey());
+	if (MapIndex != INDEX_NONE)
+	{
+		SelectMap(MapIndex);
+		return FReply::Handled();
+	}
+
 	switch (ResolveSelectionIndex(InKeyEvent.GetKey()))
 	{
 	case 0:
@@ -275,6 +296,9 @@ void ULyraWeaponSelectionScreen::BuildMenu()
 	UButton* UrbanButton = MakeButton(UrbanWeaponSelection::UrbanText, UrbanWeaponSelection::UrbanDesc);
 	UButton* StealthButton = MakeButton(UrbanWeaponSelection::StealthText, UrbanWeaponSelection::StealthDesc);
 	UButton* AssaultButton = MakeButton(UrbanWeaponSelection::AssaultText, UrbanWeaponSelection::AssaultDesc);
+	UButton* ConvolutionMapButton = MakeButton(UrbanWeaponSelection::ConvolutionMapText, UrbanWeaponSelection::ConvolutionMapDesc);
+	UButton* ExpanseMapButton = MakeButton(UrbanWeaponSelection::ExpanseMapText, UrbanWeaponSelection::ExpanseMapDesc);
+	UButton* FiringRangeMapButton = MakeButton(UrbanWeaponSelection::FiringRangeMapText, UrbanWeaponSelection::FiringRangeMapDesc);
 	if (PistolButton)
 	{
 		PistolButton->OnClicked.AddDynamic(this, &ThisClass::OnPistolClicked);
@@ -317,6 +341,7 @@ void ULyraWeaponSelectionScreen::BuildMenu()
 	}
 	UHorizontalBox* BodyRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("BodyCustomizationRow"));
 	UHorizontalBox* UniformRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("UniformCustomizationRow"));
+	UHorizontalBox* MapRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("MapSelectionRow"));
 	auto AddCustomizationButton = [](UHorizontalBox* Row, UButton* Button)
 	{
 		if (Row && Button)
@@ -333,20 +358,27 @@ void ULyraWeaponSelectionScreen::BuildMenu()
 	if (UrbanButton) UrbanButton->OnClicked.AddDynamic(this, &ThisClass::OnUrbanUniformClicked);
 	if (StealthButton) StealthButton->OnClicked.AddDynamic(this, &ThisClass::OnStealthUniformClicked);
 	if (AssaultButton) AssaultButton->OnClicked.AddDynamic(this, &ThisClass::OnAssaultUniformClicked);
+	if (ConvolutionMapButton) ConvolutionMapButton->OnClicked.AddDynamic(this, &ThisClass::OnConvolutionMapClicked);
+	if (ExpanseMapButton) ExpanseMapButton->OnClicked.AddDynamic(this, &ThisClass::OnExpanseMapClicked);
+	if (FiringRangeMapButton) FiringRangeMapButton->OnClicked.AddDynamic(this, &ThisClass::OnFiringRangeMapClicked);
 	AddCustomizationButton(BodyRow, MannyButton);
 	AddCustomizationButton(BodyRow, QuinnButton);
 	AddCustomizationButton(UniformRow, UrbanButton);
 	AddCustomizationButton(UniformRow, StealthButton);
 	AddCustomizationButton(UniformRow, AssaultButton);
+	AddCustomizationButton(MapRow, ConvolutionMapButton);
+	AddCustomizationButton(MapRow, ExpanseMapButton);
+	AddCustomizationButton(MapRow, FiringRangeMapButton);
 	if (UVerticalBoxSlot* RowSlot = MenuBox->AddChildToVerticalBox(BodyRow)) RowSlot->SetPadding(FMargin(0.0f, 14.0f, 0.0f, 0.0f));
 	if (UVerticalBoxSlot* RowSlot = MenuBox->AddChildToVerticalBox(UniformRow)) RowSlot->SetPadding(FMargin(0.0f, 2.0f));
+	if (UVerticalBoxSlot* RowSlot = MenuBox->AddChildToVerticalBox(MapRow)) RowSlot->SetPadding(FMargin(0.0f, 14.0f, 0.0f, 2.0f));
 
 	// Hotkey hint so the player knows keyboard input works even if the mouse
 	// cannot click the buttons for any reason.
 	UTextBlock* Hint = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("Hint"));
 	if (Hint)
 	{
-		Hint->SetText(FText::FromString(TEXT("1-5 BUY  |  6-7 BODY  |  8-0 UNIFORM  |  customization persists after respawn")));
+		Hint->SetText(FText::FromString(TEXT("1-5 BUY | 6-7 BODY | 8-0 UNIFORM | F1-F3 MAP (server changes map for everyone)")));
 		Hint->SetFont(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 20));
 		Hint->SetColorAndOpacity(FSlateColor(FLinearColor(0.7f, 0.7f, 0.75f)));
 		Hint->SetJustification(ETextJustify::Center);
@@ -357,7 +389,7 @@ void ULyraWeaponSelectionScreen::BuildMenu()
 	}
 
 	WidgetTree->RootWidget = Canvas;
-	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: menu built (weapons, equipment, and operator customization)."));
+	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: menu built (weapons, equipment, operator customization, and maps)."));
 }
 
 UButton* ULyraWeaponSelectionScreen::MakeButton(const FText& Label, const FText& Description)
@@ -504,6 +536,30 @@ void ULyraWeaponSelectionScreen::OnAssaultUniformClicked()
 {
 	if (ALyraPlayerController* PC = Cast<ALyraPlayerController>(GetOwningPlayer())) PC->RequestOperatorUniform(ELyraOperatorUniformPreset::Assault);
 	SetKeyboardFocus();
+}
+
+void ULyraWeaponSelectionScreen::OnConvolutionMapClicked()
+{
+	SelectMap(0);
+}
+
+void ULyraWeaponSelectionScreen::OnExpanseMapClicked()
+{
+	SelectMap(1);
+}
+
+void ULyraWeaponSelectionScreen::OnFiringRangeMapClicked()
+{
+	SelectMap(2);
+}
+
+void ULyraWeaponSelectionScreen::SelectMap(const int32 MapIndex)
+{
+	if (ALyraPlayerController* PC = Cast<ALyraPlayerController>(GetOwningPlayer()))
+	{
+		PC->RequestPlayableMap(MapIndex);
+		UE_LOG(LogLyra, Log, TEXT("MapSelection: requested packaged map index %d"), MapIndex);
+	}
 }
 void ULyraWeaponSelectionScreen::OnSelectionTimeout()
 {

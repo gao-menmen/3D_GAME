@@ -256,4 +256,19 @@ bool FUrbanOperatorCustomizationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("key 0 selects assault"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Zero), 9);
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FUrbanMapSelectionTest,
+	"UrbanSpear.GameplayStabilization.MapSelection.WhitelistAndShortcuts",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FUrbanMapSelectionTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	TestEqual(TEXT("F1 selects Convolution"), ULyraWeaponSelectionScreen::ResolveMapSelectionIndex(EKeys::F1), 0);
+	TestEqual(TEXT("F2 selects Expanse"), ULyraWeaponSelectionScreen::ResolveMapSelectionIndex(EKeys::F2), 1);
+	TestEqual(TEXT("F3 selects Firing Range"), ULyraWeaponSelectionScreen::ResolveMapSelectionIndex(EKeys::F3), 2);
+	TestEqual(TEXT("other keys do not select maps"), ULyraWeaponSelectionScreen::ResolveMapSelectionIndex(EKeys::F4), INDEX_NONE);
+	return true;
+}
 #endif

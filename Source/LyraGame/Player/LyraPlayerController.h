@@ -64,6 +64,14 @@ public:
 	void ServerSetOperatorUniform(ELyraOperatorUniformPreset UniformPreset);
 
 	static bool IsValidOperatorBody(ELyraOperatorBodyType BodyType);
+	/** Returns one of the packaged gameplay map paths, or an empty string for invalid indices. */
+	static FString ResolvePlayableMapPath(int32 MapIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Lyra|Map Selection")
+	UE_API void RequestPlayableMap(int32 MapIndex);
+
+	UFUNCTION(Server, Reliable)
+	void ServerRequestPlayableMap(int32 MapIndex);
 
 	// Call from game state logic to start recording an automatic client replay if ShouldRecordClientReplay returns true
 	UFUNCTION(BlueprintCallable, Category = "Lyra|PlayerController")
