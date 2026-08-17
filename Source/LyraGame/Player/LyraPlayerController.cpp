@@ -21,6 +21,7 @@
 #include "Settings/LyraSettingsLocal.h"
 #include "Settings/LyraSettingsShared.h"
 #include "Player/LyraTacticalEconomyComponent.h"
+#include "Character/LyraTacticalOperatorAppearanceComponent.h"
 #include "Replays/LyraReplaySubsystem.h"
 #include "ReplaySubsystem.h"
 #include "Development/LyraDeveloperSettings.h"
@@ -48,6 +49,7 @@ ALyraPlayerController::ALyraPlayerController(const FObjectInitializer& ObjectIni
 {
 	PlayerCameraManagerClass = ALyraPlayerCameraManager::StaticClass();
 	TacticalEconomyComponent = CreateDefaultSubobject<ULyraTacticalEconomyComponent>(TEXT("TacticalEconomy"));
+	TacticalEconomyComponent->OnEquipmentChanged().AddUObject(this, &ThisClass::RefreshTacticalAppearance);
 
 #if USING_CHEAT_MANAGER
 	CheatClass = ULyraCheatManager::StaticClass();
@@ -407,6 +409,7 @@ void ALyraPlayerController::OnPossess(APawn* InPawn)
 #endif
 
 	SetIsAutoRunning(false);
+	RefreshTacticalAppearance();
 }
 
 void ALyraPlayerController::SetIsAutoRunning(const bool bEnabled)
@@ -624,3 +627,18 @@ void ALyraReplayPlayerController::OnPlayerStatePawnSet(APlayerState* ChangedPlay
 	}
 }
 
+void ALyraPlayerController::RefreshTacticalAppearance()
+{
+	if (!HasAuthority() || !TacticalEconomyComponent)
+	{
+		return;
+	}
+
+	if (APawn* ControlledPawn = GetPawn())
+	{
+		if (ULyraTacticalOperatorAppearanceComponent* Appearance = ControlledPawn->FindComponentByClass<ULyraTacticalOperatorAppearanceComponent>())
+		{
+			Appearance->SetEquipmentState(TacticalEconomyComponent->GetArmor(), TacticalEconomyComponent->HasHelmet());
+		}
+	}
+}

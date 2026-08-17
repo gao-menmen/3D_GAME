@@ -1,9 +1,11 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "Components/ActorComponent.h"
 #include "LyraTacticalEconomyComponent.generated.h"
+
+DECLARE_MULTICAST_DELEGATE(FOnLyraTacticalEquipmentChanged);
 
 /** Tactical-shooter wallet rules used by buy menus and round rewards. */
 UCLASS(ClassGroup=(Lyra), meta=(BlueprintSpawnableComponent))
@@ -54,7 +56,14 @@ public:
 	static int32 ResolveRoundAward(bool bWonRound, int32 ConsecutiveLosses);
 	static int32 ClampFunds(int32 InFunds);
 
+	FOnLyraTacticalEquipmentChanged& OnEquipmentChanged() { return EquipmentChanged; }
+
 private:
+	UFUNCTION()
+	void OnRep_EquipmentState();
+
+	void BroadcastEquipmentChanged();
+
 	UFUNCTION(Server, Reliable)
 	void ServerTryPurchase(int32 Price);
 
@@ -71,9 +80,11 @@ private:
 	UPROPERTY(Replicated, VisibleInstanceOnly, Category="Lyra|Tactical Economy")
 	int32 Funds = 4000;
 
-	UPROPERTY(Replicated, VisibleInstanceOnly, Category="Lyra|Tactical Economy")
+	UPROPERTY(ReplicatedUsing=OnRep_EquipmentState, VisibleInstanceOnly, Category="Lyra|Tactical Economy")
 	float Armor = 0.0f;
 
-	UPROPERTY(Replicated, VisibleInstanceOnly, Category="Lyra|Tactical Economy")
+	UPROPERTY(ReplicatedUsing=OnRep_EquipmentState, VisibleInstanceOnly, Category="Lyra|Tactical Economy")
 	bool bHasHelmet = false;
+
+	FOnLyraTacticalEquipmentChanged EquipmentChanged;
 };

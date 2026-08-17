@@ -1,4 +1,5 @@
 #include "AI/UrbanSimpleBotComponent.h"
+#include "Character/LyraTacticalOperatorAppearanceComponent.h"
 #include "InputCoreTypes.h"
 #include "Misc/AutomationTest.h"
 #include "Player/LyraTacticalEconomyComponent.h"
@@ -212,4 +213,26 @@ bool FUrbanTacticalEconomyTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FUrbanTacticalOperatorAppearanceTest,
+	"UrbanSpear.GameplayStabilization.Character.EquipmentAppearance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FUrbanTacticalOperatorAppearanceTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+
+	const uint8 None = ULyraTacticalOperatorAppearanceComponent::MakeAppearanceFlags(0.0f, false);
+	const uint8 Armor = ULyraTacticalOperatorAppearanceComponent::MakeAppearanceFlags(100.0f, false);
+	const uint8 HelmetOnly = ULyraTacticalOperatorAppearanceComponent::MakeAppearanceFlags(0.0f, true);
+	const uint8 FullKit = ULyraTacticalOperatorAppearanceComponent::MakeAppearanceFlags(65.0f, true);
+
+	TestEqual(TEXT("unarmored operator has no equipment flags"), None, uint8{0});
+	TestEqual(TEXT("positive armor durability enables vest appearance"), Armor, uint8{1});
+	TestEqual(TEXT("helmet state is represented independently"), HelmetOnly, uint8{2});
+	TestEqual(TEXT("full equipment kit packs into two public bits"), FullKit, uint8{3});
+	TestEqual(TEXT("negative armor does not produce a vest"),
+		ULyraTacticalOperatorAppearanceComponent::MakeAppearanceFlags(-1.0f, false), uint8{0});
+	return true;
+}
 #endif

@@ -26,7 +26,12 @@ bool ULyraTacticalEconomyComponent::ShouldMirrorPurchaseToServer() const
 
 void ULyraTacticalEconomyComponent::ApplyArmorDamage(const float Damage)
 {
+	const float OldArmor = Armor;
 	Armor = FMath::Max(Armor - FMath::Max(Damage, 0.0f), 0.0f);
+	if (!FMath::IsNearlyEqual(OldArmor, Armor))
+	{
+		BroadcastEquipmentChanged();
+	}
 }
 
 bool ULyraTacticalEconomyComponent::CanAfford(const int32 Price) const
@@ -56,6 +61,7 @@ bool ULyraTacticalEconomyComponent::TryPurchaseArmorInternal(const int32 Price)
 	}
 	Funds -= Price;
 	Armor = 100.0f;
+	BroadcastEquipmentChanged();
 	return true;
 }
 
@@ -77,6 +83,7 @@ bool ULyraTacticalEconomyComponent::TryPurchaseHelmetInternal(const int32 Price)
 	}
 	Funds -= Price;
 	bHasHelmet = true;
+	BroadcastEquipmentChanged();
 	return true;
 }
 
@@ -127,4 +134,14 @@ int32 ULyraTacticalEconomyComponent::ResolveRoundAward(const bool bWonRound, con
 int32 ULyraTacticalEconomyComponent::ClampFunds(const int32 InFunds)
 {
 	return FMath::Clamp(InFunds, 0, 16000);
+}
+
+void ULyraTacticalEconomyComponent::OnRep_EquipmentState()
+{
+	BroadcastEquipmentChanged();
+}
+
+void ULyraTacticalEconomyComponent::BroadcastEquipmentChanged()
+{
+	EquipmentChanged.Broadcast();
 }

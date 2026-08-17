@@ -24,6 +24,7 @@ class ULyraAbilitySystemComponent;
 class ULyraCameraComponent;
 class ULyraHealthComponent;
 class ULyraPawnExtensionComponent;
+class ULyraTacticalOperatorAppearanceComponent;
 class UObject;
 struct FFrame;
 struct FGameplayTag;
@@ -199,6 +200,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lyra|Character", Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULyraCameraComponent> CameraComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lyra|Tactical Appearance", Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ULyraTacticalOperatorAppearanceComponent> TacticalAppearanceComponent;
 
 	UPROPERTY(Transient, ReplicatedUsing = OnRep_ReplicatedAcceleration)
 	FLyraReplicatedAcceleration ReplicatedAcceleration;

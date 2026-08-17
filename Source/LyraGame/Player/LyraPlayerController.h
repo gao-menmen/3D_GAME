@@ -121,6 +121,7 @@ private:
 private:
 	UFUNCTION()
 	void OnPlayerStateChangedTeam(UObject* TeamAgent, int32 OldTeam, int32 NewTeam);
+	void RefreshTacticalAppearance();
 
 protected:
 	// Called when the player state is set or cleared
