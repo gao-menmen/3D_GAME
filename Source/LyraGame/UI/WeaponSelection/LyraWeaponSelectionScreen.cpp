@@ -7,6 +7,8 @@
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
+#include "Components/HorizontalBox.h"
+#include "Components/HorizontalBoxSlot.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -20,6 +22,7 @@
 #include "Inventory/LyraInventoryManagerComponent.h"
 #include "LyraLogChannels.h"
 #include "Player/LyraTacticalEconomyComponent.h"
+#include "Player/LyraPlayerController.h"
 #include "Styling/CoreStyle.h"
 #include "Styling/SlateBrush.h"
 #include "TimerManager.h"
@@ -36,11 +39,21 @@ namespace UrbanWeaponSelection
 	const FText ShotgunText = NSLOCTEXT("UrbanWeaponSelection", "Shotgun", "[3] SHOTGUN  |  $1800");
 	const FText ArmorText = NSLOCTEXT("UrbanWeaponSelection", "Armor", "[4] BODY ARMOR  |  $650");
 	const FText HelmetText = NSLOCTEXT("UrbanWeaponSelection", "Helmet", "[5] HELMET  |  $350");
+	const FText MannyText = NSLOCTEXT("UrbanWeaponSelection", "Manny", "[6] BODY: MANNY");
+	const FText QuinnText = NSLOCTEXT("UrbanWeaponSelection", "Quinn", "[7] BODY: QUINN");
+	const FText UrbanText = NSLOCTEXT("UrbanWeaponSelection", "Urban", "[8] UNIFORM: URBAN");
+	const FText StealthText = NSLOCTEXT("UrbanWeaponSelection", "Stealth", "[9] UNIFORM: STEALTH");
+	const FText AssaultText = NSLOCTEXT("UrbanWeaponSelection", "Assault", "[0] UNIFORM: ASSAULT");
 	const FText PistolDesc = NSLOCTEXT("UrbanWeaponSelection", "PistolDesc", "Free fallback / balanced at close range");
 	const FText RifleDesc = NSLOCTEXT("UrbanWeaponSelection", "RifleDesc", "Automatic / reliable at medium range");
 	const FText ShotgunDesc = NSLOCTEXT("UrbanWeaponSelection", "ShotgunDesc", "High impact / close range");
 	const FText ArmorDesc = NSLOCTEXT("UrbanWeaponSelection", "ArmorDesc", "100 durability / reduces torso damage");
 	const FText HelmetDesc = NSLOCTEXT("UrbanWeaponSelection", "HelmetDesc", "Requires armor / reduces headshot damage");
+	const FText MannyDesc = NSLOCTEXT("UrbanWeaponSelection", "MannyDesc", "Masculine Lyra operator body");
+	const FText QuinnDesc = NSLOCTEXT("UrbanWeaponSelection", "QuinnDesc", "Feminine Lyra operator body");
+	const FText UrbanDesc = NSLOCTEXT("UrbanWeaponSelection", "UrbanDesc", "Balanced city tactical finish");
+	const FText StealthDesc = NSLOCTEXT("UrbanWeaponSelection", "StealthDesc", "Low-visibility matte finish");
+	const FText AssaultDesc = NSLOCTEXT("UrbanWeaponSelection", "AssaultDesc", "High-contrast combat finish");
 	const TCHAR* PistolPath = TEXT("/ShooterCore/Weapons/Pistol/ID_Pistol.ID_Pistol_C");
 	const TCHAR* RiflePath = TEXT("/ShooterCore/Weapons/Rifle/ID_Rifle.ID_Rifle_C");
 	const TCHAR* ShotgunPath = TEXT("/ShooterCore/Weapons/Shotgun/ID_Shotgun.ID_Shotgun_C");
@@ -129,6 +142,11 @@ int32 ULyraWeaponSelectionScreen::ResolveSelectionIndex(const FKey& Key)
 	{
 		return 4;
 	}
+	if (Key == EKeys::Six || Key == EKeys::NumPadSix) return 5;
+	if (Key == EKeys::Seven || Key == EKeys::NumPadSeven) return 6;
+	if (Key == EKeys::Eight || Key == EKeys::NumPadEight) return 7;
+	if (Key == EKeys::Nine || Key == EKeys::NumPadNine) return 8;
+	if (Key == EKeys::Zero || Key == EKeys::NumPadZero) return 9;
 	return INDEX_NONE;
 }
 
@@ -169,6 +187,11 @@ FReply ULyraWeaponSelectionScreen::NativeOnKeyDown(const FGeometry& InGeometry, 
 	case 4:
 		OnHelmetClicked();
 		return FReply::Handled();
+	case 5: OnMannyClicked(); return FReply::Handled();
+	case 6: OnQuinnClicked(); return FReply::Handled();
+	case 7: OnUrbanUniformClicked(); return FReply::Handled();
+	case 8: OnStealthUniformClicked(); return FReply::Handled();
+	case 9: OnAssaultUniformClicked(); return FReply::Handled();
 	default:
 		return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
 	}
@@ -247,6 +270,11 @@ void ULyraWeaponSelectionScreen::BuildMenu()
 	UButton* ShotgunButton = MakeButton(UrbanWeaponSelection::ShotgunText, UrbanWeaponSelection::ShotgunDesc);
 	UButton* ArmorButton = MakeButton(UrbanWeaponSelection::ArmorText, UrbanWeaponSelection::ArmorDesc);
 	UButton* HelmetButton = MakeButton(UrbanWeaponSelection::HelmetText, UrbanWeaponSelection::HelmetDesc);
+	UButton* MannyButton = MakeButton(UrbanWeaponSelection::MannyText, UrbanWeaponSelection::MannyDesc);
+	UButton* QuinnButton = MakeButton(UrbanWeaponSelection::QuinnText, UrbanWeaponSelection::QuinnDesc);
+	UButton* UrbanButton = MakeButton(UrbanWeaponSelection::UrbanText, UrbanWeaponSelection::UrbanDesc);
+	UButton* StealthButton = MakeButton(UrbanWeaponSelection::StealthText, UrbanWeaponSelection::StealthDesc);
+	UButton* AssaultButton = MakeButton(UrbanWeaponSelection::AssaultText, UrbanWeaponSelection::AssaultDesc);
 	if (PistolButton)
 	{
 		PistolButton->OnClicked.AddDynamic(this, &ThisClass::OnPistolClicked);
@@ -287,13 +315,38 @@ void ULyraWeaponSelectionScreen::BuildMenu()
 			BtnSlot->SetPadding(FMargin(0.0f, 8.0f));
 		}
 	}
+	UHorizontalBox* BodyRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("BodyCustomizationRow"));
+	UHorizontalBox* UniformRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("UniformCustomizationRow"));
+	auto AddCustomizationButton = [](UHorizontalBox* Row, UButton* Button)
+	{
+		if (Row && Button)
+		{
+			if (UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(Button))
+			{
+				Slot->SetPadding(FMargin(5.0f));
+				Slot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			}
+		}
+	};
+	if (MannyButton) MannyButton->OnClicked.AddDynamic(this, &ThisClass::OnMannyClicked);
+	if (QuinnButton) QuinnButton->OnClicked.AddDynamic(this, &ThisClass::OnQuinnClicked);
+	if (UrbanButton) UrbanButton->OnClicked.AddDynamic(this, &ThisClass::OnUrbanUniformClicked);
+	if (StealthButton) StealthButton->OnClicked.AddDynamic(this, &ThisClass::OnStealthUniformClicked);
+	if (AssaultButton) AssaultButton->OnClicked.AddDynamic(this, &ThisClass::OnAssaultUniformClicked);
+	AddCustomizationButton(BodyRow, MannyButton);
+	AddCustomizationButton(BodyRow, QuinnButton);
+	AddCustomizationButton(UniformRow, UrbanButton);
+	AddCustomizationButton(UniformRow, StealthButton);
+	AddCustomizationButton(UniformRow, AssaultButton);
+	if (UVerticalBoxSlot* RowSlot = MenuBox->AddChildToVerticalBox(BodyRow)) RowSlot->SetPadding(FMargin(0.0f, 14.0f, 0.0f, 0.0f));
+	if (UVerticalBoxSlot* RowSlot = MenuBox->AddChildToVerticalBox(UniformRow)) RowSlot->SetPadding(FMargin(0.0f, 2.0f));
 
 	// Hotkey hint so the player knows keyboard input works even if the mouse
 	// cannot click the buttons for any reason.
 	UTextBlock* Hint = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("Hint"));
 	if (Hint)
 	{
-		Hint->SetText(FText::FromString(TEXT("Press 1-5 or click to buy  |  armor purchases keep this menu open")));
+		Hint->SetText(FText::FromString(TEXT("1-5 BUY  |  6-7 BODY  |  8-0 UNIFORM  |  customization persists after respawn")));
 		Hint->SetFont(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 20));
 		Hint->SetColorAndOpacity(FSlateColor(FLinearColor(0.7f, 0.7f, 0.75f)));
 		Hint->SetJustification(ETextJustify::Center);
@@ -304,7 +357,7 @@ void ULyraWeaponSelectionScreen::BuildMenu()
 	}
 
 	WidgetTree->RootWidget = Canvas;
-	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: menu built (three weapons + armor + helmet + hint)."));
+	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: menu built (weapons, equipment, and operator customization)."));
 }
 
 UButton* ULyraWeaponSelectionScreen::MakeButton(const FText& Label, const FText& Description)
@@ -422,6 +475,36 @@ void ULyraWeaponSelectionScreen::PurchaseArmor(const bool bHelmet)
 	SetKeyboardFocus();
 }
 
+
+void ULyraWeaponSelectionScreen::OnMannyClicked()
+{
+	if (ALyraPlayerController* PC = Cast<ALyraPlayerController>(GetOwningPlayer())) PC->RequestOperatorBody(ELyraOperatorBodyType::Manny);
+	SetKeyboardFocus();
+}
+
+void ULyraWeaponSelectionScreen::OnQuinnClicked()
+{
+	if (ALyraPlayerController* PC = Cast<ALyraPlayerController>(GetOwningPlayer())) PC->RequestOperatorBody(ELyraOperatorBodyType::Quinn);
+	SetKeyboardFocus();
+}
+
+void ULyraWeaponSelectionScreen::OnUrbanUniformClicked()
+{
+	if (ALyraPlayerController* PC = Cast<ALyraPlayerController>(GetOwningPlayer())) PC->RequestOperatorUniform(ELyraOperatorUniformPreset::Urban);
+	SetKeyboardFocus();
+}
+
+void ULyraWeaponSelectionScreen::OnStealthUniformClicked()
+{
+	if (ALyraPlayerController* PC = Cast<ALyraPlayerController>(GetOwningPlayer())) PC->RequestOperatorUniform(ELyraOperatorUniformPreset::Stealth);
+	SetKeyboardFocus();
+}
+
+void ULyraWeaponSelectionScreen::OnAssaultUniformClicked()
+{
+	if (ALyraPlayerController* PC = Cast<ALyraPlayerController>(GetOwningPlayer())) PC->RequestOperatorUniform(ELyraOperatorUniformPreset::Assault);
+	SetKeyboardFocus();
+}
 void ULyraWeaponSelectionScreen::OnSelectionTimeout()
 {
 	UE_LOG(LogLyra, Log, TEXT("WeaponSelection: 15s timeout, falling back to pistol."));

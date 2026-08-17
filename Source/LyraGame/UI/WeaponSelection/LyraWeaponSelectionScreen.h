@@ -9,6 +9,7 @@
 class UButton;
 class ULyraInventoryItemDefinition;
 class UTextBlock;
+class UHorizontalBox;
 class UVerticalBox;
 
 /**
@@ -37,7 +38,7 @@ public:
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 	//~End of UUserWidget interface
 
-	/** Returns the supported selection index (0-4), or INDEX_NONE for other keys. */
+	/** Returns the supported selection index (0-9), or INDEX_NONE for other keys. */
 	static int32 ResolveSelectionIndex(const FKey& Key);
 
 	/** Tactical buy prices: sidearm / rifle / shotgun / armor / helmet. */
@@ -65,6 +66,20 @@ protected:
 
 	UFUNCTION()
 	void OnHelmetClicked();
+	UFUNCTION()
+	void OnMannyClicked();
+
+	UFUNCTION()
+	void OnQuinnClicked();
+
+	UFUNCTION()
+	void OnUrbanUniformClicked();
+
+	UFUNCTION()
+	void OnStealthUniformClicked();
+
+	UFUNCTION()
+	void OnAssaultUniformClicked();
 
 	UFUNCTION()
 	void OnSelectionTimeout();

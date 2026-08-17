@@ -16,6 +16,8 @@ enum class ECharacterPartSource : uint8
 {
 	Natural,
 
+	PlayerSelected,
+
 	NaturalSuppressedViaCheat,
 
 	AppliedViaDeveloperSettingsCheat,
@@ -73,6 +75,10 @@ public:
 	// Removes all added character parts, should be called on the authority only
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category=Cosmetics)
 	void RemoveAllCharacterParts();
+
+	// Replaces the natural body with a player-selected body while retaining cheat/accessory parts.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category=Cosmetics)
+	void SetPlayerSelectedCharacterPart(const FLyraCharacterPart& NewPart);
 
 	// Applies relevant developer settings if in PIE
 	void ApplyDeveloperSettings();

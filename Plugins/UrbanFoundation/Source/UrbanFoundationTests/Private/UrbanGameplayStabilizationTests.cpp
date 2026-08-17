@@ -1,5 +1,6 @@
 #include "AI/UrbanSimpleBotComponent.h"
 #include "Character/LyraTacticalOperatorAppearanceComponent.h"
+#include "Character/LyraOperatorCustomizationTypes.h"
 #include "InputCoreTypes.h"
 #include "Misc/AutomationTest.h"
 #include "Player/LyraTacticalEconomyComponent.h"
@@ -233,6 +234,26 @@ bool FUrbanTacticalOperatorAppearanceTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("full equipment kit packs into two public bits"), FullKit, uint8{3});
 	TestEqual(TEXT("negative armor does not produce a vest"),
 		ULyraTacticalOperatorAppearanceComponent::MakeAppearanceFlags(-1.0f, false), uint8{0});
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FUrbanOperatorCustomizationTest,
+	"UrbanSpear.GameplayStabilization.Character.OperatorCustomization",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FUrbanOperatorCustomizationTest::RunTest(const FString& Parameters)
+{
+	(void)Parameters;
+	TestTrue(TEXT("urban uniform is valid"), ULyraTacticalOperatorAppearanceComponent::IsValidUniformPreset(ELyraOperatorUniformPreset::Urban));
+	TestTrue(TEXT("stealth uniform is valid"), ULyraTacticalOperatorAppearanceComponent::IsValidUniformPreset(ELyraOperatorUniformPreset::Stealth));
+	TestTrue(TEXT("assault uniform is valid"), ULyraTacticalOperatorAppearanceComponent::IsValidUniformPreset(ELyraOperatorUniformPreset::Assault));
+	TestFalse(TEXT("invalid uniform values are rejected"), ULyraTacticalOperatorAppearanceComponent::IsValidUniformPreset(static_cast<ELyraOperatorUniformPreset>(99)));
+	TestEqual(TEXT("key 6 selects Manny"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Six), 5);
+	TestEqual(TEXT("key 7 selects Quinn"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Seven), 6);
+	TestEqual(TEXT("key 8 selects urban"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Eight), 7);
+	TestEqual(TEXT("key 9 selects stealth"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Nine), 8);
+	TestEqual(TEXT("key 0 selects assault"), ULyraWeaponSelectionScreen::ResolveSelectionIndex(EKeys::Zero), 9);
 	return true;
 }
 #endif

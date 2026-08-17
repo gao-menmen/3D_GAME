@@ -5,6 +5,7 @@
 #include "Camera/LyraCameraAssistInterface.h"
 #include "CommonPlayerController.h"
 #include "Teams/LyraTeamAgentInterface.h"
+#include "Character/LyraOperatorCustomizationTypes.h"
 
 #include "LyraPlayerController.generated.h"
 
@@ -50,6 +51,19 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Lyra|Tactical Economy")
 	ULyraTacticalEconomyComponent* GetTacticalEconomyComponent() const { return TacticalEconomyComponent; }
+	UFUNCTION(BlueprintCallable, Category = "Lyra|Operator Customization")
+	UE_API void RequestOperatorBody(ELyraOperatorBodyType BodyType);
+
+	UFUNCTION(BlueprintCallable, Category = "Lyra|Operator Customization")
+	UE_API void RequestOperatorUniform(ELyraOperatorUniformPreset UniformPreset);
+
+	UFUNCTION(Server, Reliable)
+	void ServerSetOperatorBody(ELyraOperatorBodyType BodyType);
+
+	UFUNCTION(Server, Reliable)
+	void ServerSetOperatorUniform(ELyraOperatorUniformPreset UniformPreset);
+
+	static bool IsValidOperatorBody(ELyraOperatorBodyType BodyType);
 
 	// Call from game state logic to start recording an automatic client replay if ShouldRecordClientReplay returns true
 	UFUNCTION(BlueprintCallable, Category = "Lyra|PlayerController")
@@ -111,6 +125,14 @@ public:
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Lyra|Tactical Economy")
 	TObjectPtr<ULyraTacticalEconomyComponent> TacticalEconomyComponent;
+	UPROPERTY(Transient)
+	ELyraOperatorBodyType SelectedOperatorBody = ELyraOperatorBodyType::Manny;
+
+	UPROPERTY(Transient)
+	ELyraOperatorUniformPreset SelectedUniformPreset = ELyraOperatorUniformPreset::Urban;
+
+	UPROPERTY(Transient)
+	bool bHasOperatorCustomization = false;
 
 	UPROPERTY()
 	FOnLyraTeamIndexChangedDelegate OnTeamChangedDelegate;
@@ -122,6 +144,7 @@ private:
 	UFUNCTION()
 	void OnPlayerStateChangedTeam(UObject* TeamAgent, int32 OldTeam, int32 NewTeam);
 	void RefreshTacticalAppearance();
+	void ApplyOperatorCustomization();
 
 protected:
 	// Called when the player state is set or cleared

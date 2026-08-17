@@ -22,6 +22,7 @@
 #include "Settings/LyraSettingsShared.h"
 #include "Player/LyraTacticalEconomyComponent.h"
 #include "Character/LyraTacticalOperatorAppearanceComponent.h"
+#include "Cosmetics/LyraControllerComponent_CharacterParts.h"
 #include "Replays/LyraReplaySubsystem.h"
 #include "ReplaySubsystem.h"
 #include "Development/LyraDeveloperSettings.h"
@@ -410,6 +411,7 @@ void ALyraPlayerController::OnPossess(APawn* InPawn)
 
 	SetIsAutoRunning(false);
 	RefreshTacticalAppearance();
+	ApplyOperatorCustomization();
 }
 
 void ALyraPlayerController::SetIsAutoRunning(const bool bEnabled)
@@ -639,6 +641,76 @@ void ALyraPlayerController::RefreshTacticalAppearance()
 		if (ULyraTacticalOperatorAppearanceComponent* Appearance = ControlledPawn->FindComponentByClass<ULyraTacticalOperatorAppearanceComponent>())
 		{
 			Appearance->SetEquipmentState(TacticalEconomyComponent->GetArmor(), TacticalEconomyComponent->HasHelmet());
+		}
+	}
+}
+
+bool ALyraPlayerController::IsValidOperatorBody(const ELyraOperatorBodyType BodyType)
+{
+	return BodyType == ELyraOperatorBodyType::Manny || BodyType == ELyraOperatorBodyType::Quinn;
+}
+
+void ALyraPlayerController::RequestOperatorBody(const ELyraOperatorBodyType BodyType)
+{
+	if (!IsValidOperatorBody(BodyType))
+	{
+		return;
+	}
+	ServerSetOperatorBody(BodyType);
+}
+
+void ALyraPlayerController::RequestOperatorUniform(const ELyraOperatorUniformPreset UniformPreset)
+{
+	if (!ULyraTacticalOperatorAppearanceComponent::IsValidUniformPreset(UniformPreset))
+	{
+		return;
+	}
+	ServerSetOperatorUniform(UniformPreset);
+}
+
+void ALyraPlayerController::ServerSetOperatorBody_Implementation(const ELyraOperatorBodyType BodyType)
+{
+	if (!IsValidOperatorBody(BodyType))
+	{
+		return;
+	}
+	SelectedOperatorBody = BodyType;
+	bHasOperatorCustomization = true;
+	ApplyOperatorCustomization();
+}
+
+void ALyraPlayerController::ServerSetOperatorUniform_Implementation(const ELyraOperatorUniformPreset UniformPreset)
+{
+	if (!ULyraTacticalOperatorAppearanceComponent::IsValidUniformPreset(UniformPreset))
+	{
+		return;
+	}
+	SelectedUniformPreset = UniformPreset;
+	bHasOperatorCustomization = true;
+	ApplyOperatorCustomization();
+}
+void ALyraPlayerController::ApplyOperatorCustomization()
+{
+	if (!HasAuthority() || !bHasOperatorCustomization)
+	{
+		return;
+	}
+
+	if (ULyraControllerComponent_CharacterParts* Parts = FindComponentByClass<ULyraControllerComponent_CharacterParts>())
+	{
+		const TCHAR* BodyPath = SelectedOperatorBody == ELyraOperatorBodyType::Quinn
+			? TEXT("/Game/Characters/Cosmetics/B_Quinn.B_Quinn_C")
+			: TEXT("/Game/Characters/Cosmetics/B_Manny.B_Manny_C");
+		FLyraCharacterPart BodyPart;
+		BodyPart.PartClass = LoadClass<AActor>(nullptr, BodyPath);
+		Parts->SetPlayerSelectedCharacterPart(BodyPart);
+	}
+
+	if (APawn* ControlledPawn = GetPawn())
+	{
+		if (ULyraTacticalOperatorAppearanceComponent* Appearance = ControlledPawn->FindComponentByClass<ULyraTacticalOperatorAppearanceComponent>())
+		{
+			Appearance->SetUniformPreset(SelectedUniformPreset);
 		}
 	}
 }

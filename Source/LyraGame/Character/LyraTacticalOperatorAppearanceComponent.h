@@ -3,9 +3,11 @@
 #pragma once
 
 #include "Components/ActorComponent.h"
+#include "Character/LyraOperatorCustomizationTypes.h"
 #include "LyraTacticalOperatorAppearanceComponent.generated.h"
 
 class UChildActorComponent;
+class ULyraPawnComponent_CharacterParts;
 
 /** Compact public equipment state replicated with the pawn for third-person cosmetics. */
 UENUM(BlueprintType)
@@ -41,6 +43,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Lyra|Tactical Appearance")
 	uint8 GetAppearanceFlags() const { return AppearanceFlags; }
 
+	UFUNCTION(BlueprintPure, Category="Lyra|Tactical Appearance")
+	ELyraOperatorUniformPreset GetUniformPreset() const { return UniformPreset; }
+
+	/** Applies a replicated uniform style without replacing team-identification colors. */
+	void SetUniformPreset(ELyraOperatorUniformPreset NewPreset);
+
+	static bool IsValidUniformPreset(ELyraOperatorUniformPreset Preset);
+
 	/** Authority-only bridge from private economy state to public pawn cosmetics. */
 	void SetEquipmentState(float Armor, bool bHasHelmet);
 
@@ -52,11 +62,21 @@ private:
 	UFUNCTION()
 	void OnRep_AppearanceFlags();
 
+	UFUNCTION()
+	void OnRep_UniformPreset();
+
+	UFUNCTION()
+	void OnCharacterPartsChanged(ULyraPawnComponent_CharacterParts* ChangedParts);
+
 	void RefreshCosmetics();
+	void ApplyUniformMaterials();
 	void RefreshCosmeticActor(TObjectPtr<UChildActorComponent>& Component, TSubclassOf<AActor> DesiredClass, FName ComponentName, FName SocketName);
 
 	UPROPERTY(ReplicatedUsing=OnRep_AppearanceFlags, VisibleInstanceOnly, Category="Lyra|Tactical Appearance")
 	uint8 AppearanceFlags = 0;
+
+	UPROPERTY(ReplicatedUsing=OnRep_UniformPreset, VisibleInstanceOnly, Category="Lyra|Tactical Appearance")
+	ELyraOperatorUniformPreset UniformPreset = ELyraOperatorUniformPreset::Urban;
 
 	/** Empty by default until licensed production-quality equipment meshes are imported. */
 	UPROPERTY(EditDefaultsOnly, Category="Lyra|Tactical Appearance")
