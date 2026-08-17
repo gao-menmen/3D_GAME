@@ -90,6 +90,33 @@ void ULyraControllerComponent_CharacterParts::RemoveCharacterPart(const FLyraCha
 	}
 }
 
+void ULyraControllerComponent_CharacterParts::SetPlayerSelectedCharacterPart(const FLyraCharacterPart& NewPart)
+{
+	if (!HasAuthority() || !NewPart.PartClass)
+	{
+		return;
+	}
+
+	ULyraPawnComponent_CharacterParts* PawnCustomizer = GetPawnCustomizer();
+	for (auto It = CharacterParts.CreateIterator(); It; ++It)
+	{
+		if (It->Source == ECharacterPartSource::Natural || It->Source == ECharacterPartSource::PlayerSelected)
+		{
+			if (It->Source == ECharacterPartSource::PlayerSelected &&
+				FLyraCharacterPart::AreEquivalentParts(It->Part, NewPart))
+			{
+				return;
+			}
+			if (PawnCustomizer)
+			{
+				PawnCustomizer->RemoveCharacterPart(It->Handle);
+			}
+			It.RemoveCurrent();
+		}
+	}
+
+	AddCharacterPartInternal(NewPart, ECharacterPartSource::PlayerSelected);
+}
 void ULyraControllerComponent_CharacterParts::RemoveAllCharacterParts()
 {
 	if (ULyraPawnComponent_CharacterParts* PawnCustomizer = GetPawnCustomizer())
@@ -220,4 +247,3 @@ void ULyraControllerComponent_CharacterParts::SetSuppressionOnNaturalParts(bool 
 	}
 #endif
 }
-

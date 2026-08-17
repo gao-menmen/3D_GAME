@@ -9,6 +9,7 @@
 class UButton;
 class ULyraInventoryItemDefinition;
 class UTextBlock;
+class UHorizontalBox;
 class UVerticalBox;
 
 /**
@@ -24,7 +25,7 @@ class UVerticalBox;
  * A 15s timer falls back to the pistol so the player can never be stuck.
  */
 UCLASS(Blueprintable)
-class ULyraWeaponSelectionScreen : public UUserWidget
+class LYRAGAME_API ULyraWeaponSelectionScreen : public UUserWidget
 {
 	GENERATED_BODY()
 
@@ -37,6 +38,21 @@ public:
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 	//~End of UUserWidget interface
 
+	/** Returns the supported selection index (0-9), or INDEX_NONE for other keys. */
+	static int32 ResolveSelectionIndex(const FKey& Key);
+	/** F1-F3 map shortcut mapping, independent from the 1-0 buy/customization keys. */
+	static int32 ResolveMapSelectionIndex(const FKey& Key);
+
+	/** Tactical buy prices: sidearm / rifle / shotgun / armor / helmet. */
+	static int32 ResolveWeaponPrice(int32 SelectionIndex);
+
+	/** Controller tag used to keep one buy screen alive across pawn respawns. */
+	static FName GetSelectionShownTag();
+
+	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetPistolItemDefinition() const { return PistolItemDefinition; }
+	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetRifleItemDefinition() const { return RifleItemDefinition; }
+	const TSoftClassPtr<ULyraInventoryItemDefinition>& GetShotgunItemDefinition() const { return ShotgunItemDefinition; }
+
 protected:
 	UFUNCTION()
 	void OnPistolClicked();
@@ -48,9 +64,41 @@ protected:
 	void OnShotgunClicked();
 
 	UFUNCTION()
+	void OnArmorClicked();
+
+	UFUNCTION()
+	void OnHelmetClicked();
+	UFUNCTION()
+	void OnMannyClicked();
+
+	UFUNCTION()
+	void OnQuinnClicked();
+
+	UFUNCTION()
+	void OnUrbanUniformClicked();
+
+	UFUNCTION()
+	void OnStealthUniformClicked();
+
+	UFUNCTION()
+	void OnAssaultUniformClicked();
+	UFUNCTION()
+	void OnConvolutionMapClicked();
+
+	UFUNCTION()
+	void OnExpanseMapClicked();
+
+	UFUNCTION()
+	void OnFiringRangeMapClicked();
+
+	void SelectMap(int32 MapIndex);
+
+	UFUNCTION()
 	void OnSelectionTimeout();
 
-	void SelectWeapon(TSoftClassPtr<ULyraInventoryItemDefinition> ItemDefClass);
+	void SelectWeapon(TSoftClassPtr<ULyraInventoryItemDefinition> ItemDefClass, int32 Price);
+	void PurchaseArmor(bool bHelmet);
+	class ULyraTacticalEconomyComponent* FindOrAddEconomyComponent() const;
 	void BuildMenu();
 	UButton* MakeButton(const FText& Label, const FText& Description);
 	void RestoreGameInput();

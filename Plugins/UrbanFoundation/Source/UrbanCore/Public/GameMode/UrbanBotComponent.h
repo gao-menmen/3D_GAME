@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AI/UrbanAITypes.h"
 #include "Components/ActorComponent.h"
 
 #include "UrbanBotComponent.generated.h"
@@ -36,7 +37,11 @@ public:
 
 	//~UActorComponent interface
 	virtual void BeginPlay() override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	//~End of UActorComponent interface
+
+	bool CanRequestReinforcement(int32 TeamId) const;
+	bool TryRequestReinforcement(int32 TeamId);
 
 private:
 	void OnExperienceLoaded(const ULyraExperienceDefinition* Experience);
@@ -44,9 +49,19 @@ private:
 	void EnsureTeamAndSpawningComponents(AGameStateBase* GameState);
 	void AssignTeamsToPlayers(AGameStateBase* GameState);
 	void SpawnBots();
+	AAIController* SpawnBotForTeam(int32 TeamId, EUrbanEnemyArchetype Archetype, bool bIsReinforcement);
+	int32 CountBotsForTeam(int32 TeamId) const;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Urban|Bot")
 	int32 NumBotsToCreate = 8;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Urban|Bot|Reinforcement", meta = (ClampMin = "1"))
+	int32 MaxBotsPerTeam = 6;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Urban|Bot|Reinforcement")
+	FUrbanReinforcementBudget ReinforcementBudget;
+
+	int32 NextBotSerial = 0;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Urban|Bot")
 	TSubclassOf<AAIController> BotControllerClass;

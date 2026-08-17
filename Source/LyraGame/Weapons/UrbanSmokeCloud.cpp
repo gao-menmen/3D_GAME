@@ -89,6 +89,30 @@ AUrbanSmokeCloud::AUrbanSmokeCloud(const FObjectInitializer& ObjectInitializer)
 	}
 }
 
+float AUrbanSmokeCloud::ResolveLifecycleAlpha(
+	const float InAge,
+	const float InGrowTime,
+	const float InLifetime,
+	const float InFadeTime)
+{
+	const float SafeLifetime = FMath::Max(InLifetime, UE_SMALL_NUMBER);
+	const float SafeGrowTime = FMath::Clamp(InGrowTime, 0.0f, SafeLifetime);
+	const float SafeFadeTime = FMath::Clamp(InFadeTime, 0.0f, SafeLifetime);
+	const float SafeAge = FMath::Clamp(InAge, 0.0f, SafeLifetime);
+
+	if (SafeGrowTime > UE_SMALL_NUMBER && SafeAge < SafeGrowTime)
+	{
+		return SafeAge / SafeGrowTime;
+	}
+
+	const float FadeStart = FMath::Max(SafeGrowTime, SafeLifetime - SafeFadeTime);
+	if (SafeFadeTime > UE_SMALL_NUMBER && SafeAge >= FadeStart)
+	{
+		return FMath::Clamp((SafeLifetime - SafeAge) / SafeFadeTime, 0.0f, 1.0f);
+	}
+
+	return 1.0f;
+}
 void AUrbanSmokeCloud::BeginPlay()
 {
 	Super::BeginPlay();
@@ -102,21 +126,7 @@ void AUrbanSmokeCloud::Tick(float DeltaSeconds)
 
 	Age += DeltaSeconds;
 
-	// Grow in, hold, then fade out.
-	if (Age < GrowTime)
-	{
-		CurrentAlpha = FMath::GetMappedRangeValueClamped(
-			FVector2D(0.0f, GrowTime), FVector2D(0.0f, 1.0f), Age);
-	}
-	else if (Age < Lifetime - FadeTime)
-	{
-		CurrentAlpha = 1.0f;
-	}
-	else
-	{
-		CurrentAlpha = FMath::GetMappedRangeValueClamped(
-			FVector2D(Lifetime - FadeTime, Lifetime), FVector2D(1.0f, 0.0f), Age);
-	}
+	CurrentAlpha = ResolveLifecycleAlpha(Age, GrowTime, Lifetime, FadeTime);
 
 	UpdateVisual();
 

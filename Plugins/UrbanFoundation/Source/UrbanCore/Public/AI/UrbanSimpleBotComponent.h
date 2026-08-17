@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Components/ActorComponent.h"
+#include "AI/UrbanAITypes.h"
 
 #include "UrbanSimpleBotComponent.generated.h"
 
@@ -19,6 +20,16 @@ enum class EBotWeaponType : uint8
 	Pistol,
 	Rifle,
 	Shotgun
+};
+
+/** Immutable combat values resolved for the bot's selected weapon. */
+struct FUrbanBotWeaponProfile
+{
+	float Damage = 0.0f;
+	float FireInterval = 0.0f;
+	float Range = 0.0f;
+	int32 Pellets = 1;
+	int32 MagazineSize = 0;
 };
 
 /**
@@ -110,6 +121,15 @@ public:
 	// Sets the bot's weapon type and its derived combat stats.
 	void SetWeaponType(EBotWeaponType InType);
 
+	// Applies a tactical enemy role and its runtime combat tuning.
+	void SetEnemyArchetype(EUrbanEnemyArchetype InArchetype);
+	EUrbanEnemyArchetype GetEnemyArchetype() const { return EnemyArchetype; }
+	EUrbanAIBehaviorState GetBehaviorState() const { return BehaviorState; }
+	const FUrbanEnemyArchetypeTuning& GetArchetypeTuning() const { return ArchetypeTuning; }
+
+	// Returns the complete validated combat profile for the selected weapon.
+	FUrbanBotWeaponProfile GetWeaponProfile() const;
+
 	// Throws one grenade at the current locked target (limited stock).
 	void ThrowGrenade();
 
@@ -170,6 +190,9 @@ protected:
 	// Preferred engagement distance for the currently held weapon (units).
 	float GetPreferredEngageDistance() const;
 
+	// Investigates or searches the last location supported by perception.
+	void ActOnLastKnownTarget(float DeltaTime);
+
 	// 6. Patrol module: wander when nothing is visible.
 	void Patrol(float DeltaTime);
 
@@ -190,6 +213,29 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<AActor> LockedTarget;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Urban|Bot|Tactics")
+	EUrbanEnemyArchetype EnemyArchetype = EUrbanEnemyArchetype::Rifleman;
+
+	FUrbanEnemyArchetypeTuning ArchetypeTuning;
+	EUrbanAIBehaviorState BehaviorState = EUrbanAIBehaviorState::PatrolOrGuard;
+	FVector LastKnownTargetLocation = FVector::ZeroVector;
+	float LastKnownTargetTimeRemaining = 0.0f;
+	float TimeInBehaviorState = 0.0f;
+	float ConfirmedTargetTime = 0.0f;
+	bool bReinforcementRequestedForCurrentContact = false;
+	float FlankRouteRefreshTime = 0.0f;
+	int32 FlankRoutePointIndex = 0;
+	TArray<FVector> FlankRoutePoints;
+
+	void SetBehaviorState(EUrbanAIBehaviorState NewState);
+
+	bool HasCompletedTargetReaction() const;
+
+	// Produces a side-route only when NavigationSystem confirms a complete path.
+	bool RefreshValidatedFlankRoute(const APawn* Pawn, const AActor* Enemy);
+	void FollowFlankRoute(const FVector& EnemyDirection);
+	void ClearFlankRoute();
 
 	float FireTimer = 0.0f;
 	float PatrolTimer = 0.0f;

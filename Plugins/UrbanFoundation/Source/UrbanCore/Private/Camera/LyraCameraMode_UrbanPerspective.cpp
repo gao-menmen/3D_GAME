@@ -1,6 +1,7 @@
 #include "Camera/LyraCameraMode_UrbanPerspective.h"
 
 #include "Camera/LyraCameraComponent.h"
+
 #include "Character/UrbanPerspectiveComponent.h"
 #include "CollisionQueryParams.h"
 #include "Engine/World.h"
@@ -18,26 +19,6 @@ namespace UrbanFirstPersonWeapon
     // few frames after possession is still picked up, and a failed early
     // attempt never permanently blocks a later one.
     const FName ComponentTagName(TEXT("Urban.FirstPersonWeapon"));
-}
-
-FVector UrbanCameraTransition::ResolveFrameLocation(
-    const FVector& TransitionStartLocation,
-    const FVector& DesiredLocation,
-    const float Alpha,
-    TFunctionRef<FVector(const FVector&)> CollisionConstraint)
-{
-    const FVector InterpolatedLocation = FMath::Lerp(
-        TransitionStartLocation,
-        DesiredLocation,
-        FMath::Clamp(Alpha, 0.0f, 1.0f));
-    return CollisionConstraint(InterpolatedLocation);
-}
-
-ULyraCameraMode_UrbanPerspective::ULyraCameraMode_UrbanPerspective()
-{
-    CameraSettings.Sanitize();
-    BlendTime = CameraSettings.TransitionTime;
-    FieldOfView = CameraSettings.FirstPersonFieldOfView;
 }
 
 void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetActor)
@@ -85,6 +66,11 @@ void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetAct
                 {
                     continue;
                 }
+                FWeaponAttachmentState& AttachmentState = WeaponAttachmentStates.Add(Spawned);
+                AttachmentState.Parent = Root->GetAttachParent();
+                AttachmentState.SocketName = Root->GetAttachSocketName();
+                AttachmentState.RelativeTransform = Root->GetRelativeTransform();
+
                 Root->SetMobility(EComponentMobility::Movable);
                 Root->AttachToComponent(
                     AttachParent,
@@ -97,6 +83,77 @@ void ULyraCameraMode_UrbanPerspective::EnsureFirstPersonWeapon(AActor* TargetAct
     }
 }
 
+FVector UrbanCameraTransition::ResolveFrameLocation(
+    const FVector& TransitionStartLocation,
+    const FVector& DesiredLocation,
+    const float Alpha,
+    TFunctionRef<FVector(const FVector&)> CollisionConstraint)
+{
+    const FVector InterpolatedLocation = FMath::Lerp(
+        TransitionStartLocation,
+        DesiredLocation,
+        FMath::Clamp(Alpha, 0.0f, 1.0f));
+    return CollisionConstraint(InterpolatedLocation);
+}
+
+ULyraCameraMode_UrbanPerspective::ULyraCameraMode_UrbanPerspective()
+{
+    CameraSettings.Sanitize();
+    BlendTime = CameraSettings.TransitionTime;
+    FieldOfView = CameraSettings.ThirdPersonFieldOfView;
+}
+
+bool ULyraCameraMode_UrbanPerspective::IsThirdPerson(const EUrbanPerspective Perspective)
+{
+    return Perspective == EUrbanPerspective::ThirdPersonRight
+        || Perspective == EUrbanPerspective::ThirdPersonLeft;
+}
+
+void ULyraCameraMode_UrbanPerspective::BuildThirdPersonView(
+    const FUrbanCameraSettings& SafeSettings,
+    const EUrbanPerspective Perspective)
+{
+    const FVector PivotLocation = GetPivotLocation();
+    FRotator PivotRotation = GetPivotRotation();
+    PivotRotation.Pitch = FMath::ClampAngle(PivotRotation.Pitch, ViewPitchMin, ViewPitchMax);
+
+    const FVector DesiredLocation = PivotLocation
+        + PivotRotation.RotateVector(SafeSettings.GetThirdPersonOffset(Perspective));
+
+    View.Location = ResolveCameraPenetration(
+        PivotLocation,
+        DesiredLocation,
+        SafeSettings.CollisionRadius);
+    View.Rotation = PivotRotation;
+    View.ControlRotation = PivotRotation;
+    View.FieldOfView = SafeSettings.ThirdPersonFieldOfView;
+}
+
+void ULyraCameraMode_UrbanPerspective::RestoreWeaponAttachments()
+{
+    for (auto It = WeaponAttachmentStates.CreateIterator(); It; ++It)
+    {
+        AActor* WeaponActor = It.Key().Get();
+        if (!WeaponActor)
+        {
+            It.RemoveCurrent();
+            continue;
+        }
+
+        USceneComponent* Root = WeaponActor->GetRootComponent();
+        USceneComponent* OriginalParent = It.Value().Parent.Get();
+        if (Root && OriginalParent)
+        {
+            Root->AttachToComponent(
+                OriginalParent,
+                FAttachmentTransformRules::KeepRelativeTransform,
+                It.Value().SocketName);
+            Root->SetRelativeTransform(It.Value().RelativeTransform);
+        }
+        WeaponActor->Tags.Remove(UrbanFirstPersonWeapon::ComponentTagName);
+        It.RemoveCurrent();
+    }
+}
 void ULyraCameraMode_UrbanPerspective::BuildFirstPersonView(
     const FUrbanCameraSettings& SafeSettings)
 {
@@ -159,14 +216,93 @@ void ULyraCameraMode_UrbanPerspective::UpdateView(const float DeltaTime)
     AActor* TargetActor = GetTargetActor();
     check(TargetActor);
 
-    EnsureFirstPersonWeapon(TargetActor);
+    UUrbanPerspectiveComponent* PerspectiveComponent =
+        TargetActor->FindComponentByClass<UUrbanPerspectiveComponent>();
+    const EUrbanPerspective Perspective = PerspectiveComponent
+        ? PerspectiveComponent->GetAcceptedPerspective()
+        : EUrbanPerspective::FirstPerson;
+
+    if (LastTargetActor.Get() != TargetActor)
+    {
+        RestoreWeaponAttachments();
+        ResetTransitionState(TargetActor, PerspectiveComponent);
+    }
 
     FUrbanCameraSettings SafeSettings = CameraSettings;
     SafeSettings.Sanitize();
 
-    // First-person only: the third-person view has been removed. The camera
-    // always renders from the pawn's eyes regardless of the perspective the
-    // perspective component reports, so the game stays locked in first-person
-    // and the perspective-transition plumbing no longer runs.
-    BuildFirstPersonView(SafeSettings);
+    if (IsThirdPerson(Perspective))
+    {
+        RestoreWeaponAttachments();
+        BuildThirdPersonView(SafeSettings, Perspective);
+    }
+    else
+    {
+        EnsureFirstPersonWeapon(TargetActor);
+        BuildFirstPersonView(SafeSettings);
+    }
+
+    const FVector DesiredLocation = View.Location;
+    const float DesiredFieldOfView = View.FieldOfView;
+    if (!bHasPreviousView)
+    {
+        LastPerspective = Perspective;
+        LastOutputLocation = DesiredLocation;
+        LastOutputFieldOfView = DesiredFieldOfView;
+        bHasPreviousView = true;
+        return;
+    }
+
+    if (Perspective != LastPerspective)
+    {
+        TransitionStartLocation = LastOutputLocation;
+        TransitionStartFieldOfView = LastOutputFieldOfView;
+        TransitionElapsed = 0.0f;
+        bTransitionActive = true;
+        LastPerspective = Perspective;
+
+        if (PerspectiveComponent)
+        {
+            PerspectiveComponent->BeginTransition();
+        }
+    }
+
+    if (bTransitionActive)
+    {
+        TransitionElapsed += FMath::Max(DeltaTime, 0.0f);
+        const float Alpha = FMath::Clamp(
+            TransitionElapsed / SafeSettings.TransitionTime,
+            0.0f,
+            1.0f);
+
+        const FVector TransitionPivotLocation = GetPivotLocation();
+        View.Location = UrbanCameraTransition::ResolveFrameLocation(
+            TransitionStartLocation,
+            DesiredLocation,
+            Alpha,
+            [this, TransitionPivotLocation, CollisionRadius = SafeSettings.CollisionRadius](
+                const FVector& InterpolatedLocation)
+            {
+                return ResolveCameraPenetration(
+                    TransitionPivotLocation,
+                    InterpolatedLocation,
+                    CollisionRadius);
+            });
+        View.FieldOfView = FMath::Lerp(
+            TransitionStartFieldOfView,
+            DesiredFieldOfView,
+            Alpha);
+
+        if (Alpha >= 1.0f)
+        {
+            bTransitionActive = false;
+            if (PerspectiveComponent)
+            {
+                PerspectiveComponent->FinishTransition();
+            }
+        }
+    }
+
+    LastOutputLocation = View.Location;
+    LastOutputFieldOfView = View.FieldOfView;
 }

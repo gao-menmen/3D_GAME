@@ -204,21 +204,21 @@ void ULyraHeroComponent::TryShowWeaponSelection()
 		return;
 	}
 
-	// Only show once per pawn (a respawn creates a new pawn and will show it
-	// again, which doubles as a round start).
-	static const FName SelectionShownTag(TEXT("Urban.WeaponSelectionShown"));
-	if (Pawn->Tags.Contains(SelectionShownTag))
-	{
-		return;
-	}
-	Pawn->Tags.Add(SelectionShownTag);
-
 	ALyraPlayerController* LyraPC = GetController<ALyraPlayerController>();
 	if (!LyraPC || !LyraPC->GetLocalPlayer())
 	{
 		return;
 	}
 
+	// Inventory and the quick bar live on the controller and survive pawn
+	// respawns. Track the buy screen there as well; a pawn tag caused a fresh
+	// screen to be stacked every time the local player respawned.
+	const FName SelectionShownTag = ULyraWeaponSelectionScreen::GetSelectionShownTag();
+	if (LyraPC->Tags.Contains(SelectionShownTag))
+	{
+		return;
+	}
+	LyraPC->Tags.Add(SelectionShownTag);
 	// Plain UMG path (no CommonUI layer stack): create the screen, put it on
 	// the viewport and switch to UI-only input so the player cannot move until
 	// a weapon is chosen. The screen restores game input when it closes.
@@ -227,6 +227,7 @@ void ULyraHeroComponent::TryShowWeaponSelection()
 		ULyraWeaponSelectionScreen::StaticClass());
 	if (!Screen)
 	{
+		LyraPC->Tags.Remove(SelectionShownTag);
 		UE_LOG(LogLyra, Error, TEXT("TryShowWeaponSelection: failed to create weapon selection widget."));
 		return;
 	}
@@ -701,4 +702,3 @@ void ULyraHeroComponent::ClearAbilityCameraMode(const FGameplayAbilitySpecHandle
 		AbilityCameraModeOwningSpecHandle = FGameplayAbilitySpecHandle();
 	}
 }
-

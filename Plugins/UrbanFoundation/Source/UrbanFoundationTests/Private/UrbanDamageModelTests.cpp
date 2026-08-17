@@ -60,6 +60,45 @@ bool FUrbanDamageArmorAbsorptionTest::RunTest(const FString& Parameters)
     return true;
 }
 
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FUrbanDamageHelmetArmorTest,
+    "UrbanSpear.Combat.Damage.HelmetArmor",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FUrbanDamageHelmetArmorTest::RunTest(const FString& Parameters)
+{
+    (void)Parameters;
+
+    const FUrbanDamageProfile Profile;
+    FUrbanDamageRequest Request;
+    Request.RawDamage = 40.0f;
+    Request.HitRegion = EUrbanHitRegion::Head;
+
+    const FUrbanDamageResult Unprotected = UUrbanDamageModel::CalculateDamage(100.0f, 100.0f, Profile, Request);
+    TestEqual(TEXT("headshots bypass armor without a helmet"), Unprotected.AppliedHealthDamage, 80.0f, 0.001f);
+    TestEqual(TEXT("unprotected headshot preserves armor"), Unprotected.AppliedArmorDamage, 0.0f, 0.001f);
+
+    Request.bHasHelmet = true;
+    const FUrbanDamageResult Protected = UUrbanDamageModel::CalculateDamage(100.0f, 100.0f, Profile, Request);
+    TestEqual(TEXT("helmet absorbs half of scaled headshot damage"), Protected.AppliedArmorDamage, 40.0f, 0.001f);
+    TestEqual(TEXT("helmet lets remaining headshot damage reach health"), Protected.AppliedHealthDamage, 40.0f, 0.001f);
+
+    const FUrbanDamageResult BrokenHelmet = UUrbanDamageModel::CalculateDamage(100.0f, 10.0f, Profile, Request);
+    TestEqual(TEXT("helmet absorption is capped by durability"), BrokenHelmet.AppliedArmorDamage, 10.0f, 0.001f);
+    TestEqual(TEXT("damage beyond helmet durability reaches health"), BrokenHelmet.AppliedHealthDamage, 70.0f, 0.001f);
+
+    Request.HitRegion = EUrbanHitRegion::Limb;
+    const FUrbanDamageResult Limb = UUrbanDamageModel::CalculateDamage(100.0f, 100.0f, Profile, Request);
+    TestEqual(TEXT("helmet does not protect limbs"), Limb.AppliedHealthDamage, 28.0f, 0.001f);
+    TestEqual(TEXT("limb hit preserves armor"), Limb.AppliedArmorDamage, 0.0f, 0.001f);
+
+    Request.HitRegion = EUrbanHitRegion::Head;
+    const FUrbanDamageResult NoDurability = UUrbanDamageModel::CalculateDamage(100.0f, 0.0f, Profile, Request);
+    TestEqual(TEXT("helmet needs armor durability to absorb"), NoDurability.AppliedHealthDamage, 80.0f, 0.001f);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FUrbanDamageLethalClampTest,
     "UrbanSpear.Combat.Damage.LethalClamp",

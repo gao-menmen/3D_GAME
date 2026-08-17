@@ -175,6 +175,7 @@ void FUrbanDamageProfile::Sanitize()
     TorsoMultiplier = FMath::Clamp(TorsoMultiplier, 0.0f, 10.0f);
     LimbMultiplier = FMath::Clamp(LimbMultiplier, 0.0f, 10.0f);
     TorsoArmorAbsorption = FMath::Clamp(TorsoArmorAbsorption, 0.0f, 1.0f);
+    HeadArmorAbsorption = FMath::Clamp(HeadArmorAbsorption, 0.0f, 1.0f);
     ArmorDurabilityDamageScale = FMath::Clamp(ArmorDurabilityDamageScale, 0.01f, 10.0f);
 }
 

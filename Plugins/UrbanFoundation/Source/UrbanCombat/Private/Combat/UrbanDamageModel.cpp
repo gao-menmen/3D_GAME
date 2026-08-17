@@ -17,13 +17,18 @@ FUrbanDamageResult UUrbanDamageModel::CalculateDamage(
         * SafeProfile.GetRegionMultiplier(DamageRequest.HitRegion);
 
     float PreventedHealthDamage = 0.0f;
+    const bool bTorsoArmorApplies = DamageRequest.HitRegion == EUrbanHitRegion::Torso;
+    const bool bHelmetApplies = DamageRequest.HitRegion == EUrbanHitRegion::Head && DamageRequest.bHasHelmet;
     const bool bArmorApplies = DamageRequest.bCanDamageArmor
-        && DamageRequest.HitRegion == EUrbanHitRegion::Torso
+        && (bTorsoArmorApplies || bHelmetApplies)
         && Result.RemainingArmor > 0.0f;
 
     if (bArmorApplies)
     {
-        const float DesiredPreventedDamage = ScaledDamage * SafeProfile.TorsoArmorAbsorption;
+        const float Absorption = bHelmetApplies
+            ? SafeProfile.HeadArmorAbsorption
+            : SafeProfile.TorsoArmorAbsorption;
+        const float DesiredPreventedDamage = ScaledDamage * Absorption;
         const float DesiredArmorDamage = DesiredPreventedDamage * SafeProfile.ArmorDurabilityDamageScale;
         Result.AppliedArmorDamage = FMath::Min(DesiredArmorDamage, Result.RemainingArmor);
         PreventedHealthDamage = Result.AppliedArmorDamage / SafeProfile.ArmorDurabilityDamageScale;

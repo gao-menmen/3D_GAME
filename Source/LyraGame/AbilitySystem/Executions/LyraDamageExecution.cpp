@@ -8,6 +8,10 @@
 #include "Engine/World.h"
 #include "LyraLogChannels.h"
 #include "Teams/LyraTeamSubsystem.h"
+#include "Combat/UrbanDamageModel.h"
+#include "Combat/UrbanHitRegionResolver.h"
+#include "GameFramework/Pawn.h"
+#include "Player/LyraTacticalEconomyComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LyraDamageExecution)
 
@@ -128,7 +132,36 @@ void ULyraDamageExecution::Execute_Implementation(const FGameplayEffectCustomExe
 	DistanceAttenuation = FMath::Max(DistanceAttenuation, 0.0f);
 
 	// Clamping is done when damage is converted to -health
-	const float DamageDone = FMath::Max(BaseDamage * DistanceAttenuation * PhysicalMaterialAttenuation * DamageInteractionAllowedMultiplier, 0.0f);
+	float DamageDone = FMath::Max(BaseDamage * DistanceAttenuation * PhysicalMaterialAttenuation * DamageInteractionAllowedMultiplier, 0.0f);
+
+	// ShooterCore physical materials already provide per-region weapon tuning.
+	// Preserve that authored damage and apply Urban Spear armor absorption using
+	// only the skeletal bone classification from the authoritative hit result.
+	if (DamageDone > 0.0f && HitActorResult)
+	{
+		const APawn* TargetPawn = Cast<APawn>(HitActor);
+		AController* TargetController = TargetPawn ? TargetPawn->GetController() : nullptr;
+		ULyraTacticalEconomyComponent* Armor = TargetController
+			? TargetController->FindComponentByClass<ULyraTacticalEconomyComponent>()
+			: nullptr;
+		if (Armor && Armor->GetArmor() > 0.0f)
+		{
+			FUrbanDamageProfile ArmorProfile;
+			ArmorProfile.HeadMultiplier = 1.0f;
+			ArmorProfile.TorsoMultiplier = 1.0f;
+			ArmorProfile.LimbMultiplier = 1.0f;
+
+			FUrbanDamageRequest ArmorRequest;
+			ArmorRequest.RawDamage = DamageDone;
+			ArmorRequest.HitRegion = UUrbanHitRegionResolver::ResolveBoneName(HitActorResult->BoneName);
+			ArmorRequest.bHasHelmet = Armor->HasHelmet();
+
+			const FUrbanDamageResult ArmorResult = UUrbanDamageModel::CalculateDamage(
+				DamageDone, Armor->GetArmor(), ArmorProfile, ArmorRequest);
+			Armor->ApplyArmorDamage(ArmorResult.AppliedArmorDamage);
+			DamageDone = ArmorResult.AppliedHealthDamage;
+		}
+	}
 
 	if (DamageDone > 0.0f)
 	{

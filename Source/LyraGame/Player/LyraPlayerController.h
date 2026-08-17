@@ -5,6 +5,7 @@
 #include "Camera/LyraCameraAssistInterface.h"
 #include "CommonPlayerController.h"
 #include "Teams/LyraTeamAgentInterface.h"
+#include "Character/LyraOperatorCustomizationTypes.h"
 
 #include "LyraPlayerController.generated.h"
 
@@ -20,6 +21,7 @@ class FPrimitiveComponentId;
 class IInputInterface;
 class ULyraAbilitySystemComponent;
 class ULyraSettingsShared;
+class ULyraTacticalEconomyComponent;
 class UObject;
 class UPlayer;
 struct FFrame;
@@ -46,6 +48,30 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Lyra|PlayerController")
 	UE_API ALyraHUD* GetLyraHUD() const;
+
+	UFUNCTION(BlueprintPure, Category = "Lyra|Tactical Economy")
+	ULyraTacticalEconomyComponent* GetTacticalEconomyComponent() const { return TacticalEconomyComponent; }
+	UFUNCTION(BlueprintCallable, Category = "Lyra|Operator Customization")
+	UE_API void RequestOperatorBody(ELyraOperatorBodyType BodyType);
+
+	UFUNCTION(BlueprintCallable, Category = "Lyra|Operator Customization")
+	UE_API void RequestOperatorUniform(ELyraOperatorUniformPreset UniformPreset);
+
+	UFUNCTION(Server, Reliable)
+	void ServerSetOperatorBody(ELyraOperatorBodyType BodyType);
+
+	UFUNCTION(Server, Reliable)
+	void ServerSetOperatorUniform(ELyraOperatorUniformPreset UniformPreset);
+
+	static bool IsValidOperatorBody(ELyraOperatorBodyType BodyType);
+	/** Returns one of the packaged gameplay map paths, or an empty string for invalid indices. */
+	static FString ResolvePlayableMapPath(int32 MapIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Lyra|Map Selection")
+	UE_API void RequestPlayableMap(int32 MapIndex);
+
+	UFUNCTION(Server, Reliable)
+	void ServerRequestPlayableMap(int32 MapIndex);
 
 	// Call from game state logic to start recording an automatic client replay if ShouldRecordClientReplay returns true
 	UFUNCTION(BlueprintCallable, Category = "Lyra|PlayerController")
@@ -105,6 +131,17 @@ public:
 	UE_API bool GetIsAutoRunning() const;
 
 private:
+	UPROPERTY(VisibleAnywhere, Category = "Lyra|Tactical Economy")
+	TObjectPtr<ULyraTacticalEconomyComponent> TacticalEconomyComponent;
+	UPROPERTY(Transient)
+	ELyraOperatorBodyType SelectedOperatorBody = ELyraOperatorBodyType::Manny;
+
+	UPROPERTY(Transient)
+	ELyraOperatorUniformPreset SelectedUniformPreset = ELyraOperatorUniformPreset::Urban;
+
+	UPROPERTY(Transient)
+	bool bHasOperatorCustomization = false;
+
 	UPROPERTY()
 	FOnLyraTeamIndexChangedDelegate OnTeamChangedDelegate;
 
@@ -114,6 +151,8 @@ private:
 private:
 	UFUNCTION()
 	void OnPlayerStateChangedTeam(UObject* TeamAgent, int32 OldTeam, int32 NewTeam);
+	void RefreshTacticalAppearance();
+	void ApplyOperatorCustomization();
 
 protected:
 	// Called when the player state is set or cleared

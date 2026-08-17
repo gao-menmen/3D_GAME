@@ -85,6 +85,15 @@ bool FUrbanPerspectiveCameraModeContractTest::RunTest(const FString& Parameters)
         return false;
     }
 
+    TestFalse(
+        TEXT("first-person uses the first-person camera path"),
+        ULyraCameraMode_UrbanPerspective::IsThirdPerson(EUrbanPerspective::FirstPerson));
+    TestTrue(
+        TEXT("right shoulder uses the third-person camera path"),
+        ULyraCameraMode_UrbanPerspective::IsThirdPerson(EUrbanPerspective::ThirdPersonRight));
+    TestTrue(
+        TEXT("left shoulder uses the third-person camera path"),
+        ULyraCameraMode_UrbanPerspective::IsThirdPerson(EUrbanPerspective::ThirdPersonLeft));
     const FUrbanCameraSettings& Settings = CameraMode->GetCameraSettings();
     TestTrue(TEXT("camera mode exposes sanitized settings"), Settings.IsWithinSafeRanges());
     TestEqual(

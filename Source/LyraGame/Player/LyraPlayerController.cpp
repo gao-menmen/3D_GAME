@@ -20,6 +20,9 @@
 #include "GameModes/LyraGameState.h"
 #include "Settings/LyraSettingsLocal.h"
 #include "Settings/LyraSettingsShared.h"
+#include "Player/LyraTacticalEconomyComponent.h"
+#include "Character/LyraTacticalOperatorAppearanceComponent.h"
+#include "Cosmetics/LyraControllerComponent_CharacterParts.h"
 #include "Replays/LyraReplaySubsystem.h"
 #include "ReplaySubsystem.h"
 #include "Development/LyraDeveloperSettings.h"
@@ -46,6 +49,8 @@ ALyraPlayerController::ALyraPlayerController(const FObjectInitializer& ObjectIni
 	: Super(ObjectInitializer)
 {
 	PlayerCameraManagerClass = ALyraPlayerCameraManager::StaticClass();
+	TacticalEconomyComponent = CreateDefaultSubobject<ULyraTacticalEconomyComponent>(TEXT("TacticalEconomy"));
+	TacticalEconomyComponent->OnEquipmentChanged().AddUObject(this, &ThisClass::RefreshTacticalAppearance);
 
 #if USING_CHEAT_MANAGER
 	CheatClass = ULyraCheatManager::StaticClass();
@@ -405,6 +410,8 @@ void ALyraPlayerController::OnPossess(APawn* InPawn)
 #endif
 
 	SetIsAutoRunning(false);
+	RefreshTacticalAppearance();
+	ApplyOperatorCustomization();
 }
 
 void ALyraPlayerController::SetIsAutoRunning(const bool bEnabled)
@@ -622,3 +629,122 @@ void ALyraReplayPlayerController::OnPlayerStatePawnSet(APlayerState* ChangedPlay
 	}
 }
 
+void ALyraPlayerController::RefreshTacticalAppearance()
+{
+	if (!HasAuthority() || !TacticalEconomyComponent)
+	{
+		return;
+	}
+
+	if (APawn* ControlledPawn = GetPawn())
+	{
+		if (ULyraTacticalOperatorAppearanceComponent* Appearance = ControlledPawn->FindComponentByClass<ULyraTacticalOperatorAppearanceComponent>())
+		{
+			Appearance->SetEquipmentState(TacticalEconomyComponent->GetArmor(), TacticalEconomyComponent->HasHelmet());
+		}
+	}
+}
+
+bool ALyraPlayerController::IsValidOperatorBody(const ELyraOperatorBodyType BodyType)
+{
+	return BodyType == ELyraOperatorBodyType::Manny || BodyType == ELyraOperatorBodyType::Quinn;
+}
+
+void ALyraPlayerController::RequestOperatorBody(const ELyraOperatorBodyType BodyType)
+{
+	if (!IsValidOperatorBody(BodyType))
+	{
+		return;
+	}
+	ServerSetOperatorBody(BodyType);
+}
+
+void ALyraPlayerController::RequestOperatorUniform(const ELyraOperatorUniformPreset UniformPreset)
+{
+	if (!ULyraTacticalOperatorAppearanceComponent::IsValidUniformPreset(UniformPreset))
+	{
+		return;
+	}
+	ServerSetOperatorUniform(UniformPreset);
+}
+
+void ALyraPlayerController::ServerSetOperatorBody_Implementation(const ELyraOperatorBodyType BodyType)
+{
+	if (!IsValidOperatorBody(BodyType))
+	{
+		return;
+	}
+	SelectedOperatorBody = BodyType;
+	bHasOperatorCustomization = true;
+	ApplyOperatorCustomization();
+}
+
+void ALyraPlayerController::ServerSetOperatorUniform_Implementation(const ELyraOperatorUniformPreset UniformPreset)
+{
+	if (!ULyraTacticalOperatorAppearanceComponent::IsValidUniformPreset(UniformPreset))
+	{
+		return;
+	}
+	SelectedUniformPreset = UniformPreset;
+	bHasOperatorCustomization = true;
+	ApplyOperatorCustomization();
+}
+void ALyraPlayerController::ApplyOperatorCustomization()
+{
+	if (!HasAuthority() || !bHasOperatorCustomization)
+	{
+		return;
+	}
+
+	if (ULyraControllerComponent_CharacterParts* Parts = FindComponentByClass<ULyraControllerComponent_CharacterParts>())
+	{
+		const TCHAR* BodyPath = SelectedOperatorBody == ELyraOperatorBodyType::Quinn
+			? TEXT("/Game/Characters/Cosmetics/B_Quinn.B_Quinn_C")
+			: TEXT("/Game/Characters/Cosmetics/B_Manny.B_Manny_C");
+		FLyraCharacterPart BodyPart;
+		BodyPart.PartClass = LoadClass<AActor>(nullptr, BodyPath);
+		Parts->SetPlayerSelectedCharacterPart(BodyPart);
+	}
+
+	if (APawn* ControlledPawn = GetPawn())
+	{
+		if (ULyraTacticalOperatorAppearanceComponent* Appearance = ControlledPawn->FindComponentByClass<ULyraTacticalOperatorAppearanceComponent>())
+		{
+			Appearance->SetUniformPreset(SelectedUniformPreset);
+		}
+	}
+}
+
+FString ALyraPlayerController::ResolvePlayableMapPath(const int32 MapIndex)
+{
+	switch (MapIndex)
+	{
+	case 0: return TEXT("/ShooterMaps/Maps/L_Convolution_Blockout");
+	case 1: return TEXT("/ShooterMaps/Maps/L_Expanse");
+	case 2: return TEXT("/ShooterMaps/Maps/L_FiringRange_WP");
+	default: return FString();
+	}
+}
+
+void ALyraPlayerController::RequestPlayableMap(const int32 MapIndex)
+{
+	if (!ResolvePlayableMapPath(MapIndex).IsEmpty())
+	{
+		ServerRequestPlayableMap(MapIndex);
+	}
+}
+
+void ALyraPlayerController::ServerRequestPlayableMap_Implementation(const int32 MapIndex)
+{
+	const FString MapPath = ResolvePlayableMapPath(MapIndex);
+	if (MapPath.IsEmpty())
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		UE_LOG(LogLyra, Log, TEXT("MapSelection: server travelling all players to %s"), *MapPath);
+		World->ServerTravel(MapPath, false);
+	}
+}

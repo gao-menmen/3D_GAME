@@ -6,6 +6,7 @@
 #include "Camera/LyraCameraComponent.h"
 #include "Character/LyraHealthComponent.h"
 #include "Character/LyraPawnExtensionComponent.h"
+#include "Character/LyraTacticalOperatorAppearanceComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "LyraCharacterMovementComponent.h"
@@ -68,6 +69,8 @@ ALyraCharacter::ALyraCharacter(const FObjectInitializer& ObjectInitializer)
 	HealthComponent = CreateDefaultSubobject<ULyraHealthComponent>(TEXT("HealthComponent"));
 	HealthComponent->OnDeathStarted.AddDynamic(this, &ThisClass::OnDeathStarted);
 	HealthComponent->OnDeathFinished.AddDynamic(this, &ThisClass::OnDeathFinished);
+
+	TacticalAppearanceComponent = CreateDefaultSubobject<ULyraTacticalOperatorAppearanceComponent>(TEXT("TacticalAppearanceComponent"));
 
 	CameraComponent = CreateDefaultSubobject<ULyraCameraComponent>(TEXT("CameraComponent"));
 	CameraComponent->SetRelativeLocation(FVector(-300.0f, 0.0f, 75.0f));
